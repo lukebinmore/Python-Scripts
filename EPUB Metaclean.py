@@ -198,34 +198,51 @@ def GetBookImage(sourceLink="", bookName=""):
 
 
 def SearchBook(fileName):
-    query = "+".join(
-        fileName.replace("_OceanofPDF.com_", " ")
-        .replace("-", " ")
-        .replace("_", " ")
-        .replace("(", "")
-        .replace(")", "")
-        .replace(".epub", "")
-        .split()
-    )
-    query_normal = FitToScreen(query.replace("+", " "))
-    url = f"https://www.goodreads.com/search?q={query}"
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/538.39 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-    }
-    console.print(f"Searching {query_normal}...")
-    response = requests.get(url, headers=headers)
-    if response.status_code == 200:
-        soup = BeautifulSoup(response.content, "html.parser")
-        results = soup.select("tr")
-        if results:
+    manual_search = False
+    while True:
+        query = "+".join(
+            fileName.replace("_OceanofPDF.com_", " ")
+            .replace("-", " ")
+            .replace("_", " ")
+            .replace("(", "")
+            .replace(")", "")
+            .replace(".epub", "")
+            .split()
+        )
+        if manual_search:
+            console.print(
+                f"\rManual Search For [white]{FitToScreen(fileName)}[/white] - (Leave blank to skip)"
+            )
+            query = "+".join(
+                Prompt.ask(
+                    f"Please Enter Search Term (Leave Blank To Skip)",
+                    default="",
+                )
+                .replace(" ", "+")
+                .split()
+            )
+            ClearLine()
+            if query == "":
+                return False
+            ClearLine()
+        query_normal = FitToScreen(query.replace("+", " "))
+        console.print(f"Searching {FitToScreen(query_normal)}...")
+        url = f"https://www.goodreads.com/search?q={query}"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/538.39 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        }
+        response = requests.get(url, headers=headers)
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.content, "html.parser")
+            results = soup.select("tr")
             ClearLine()
             console.print(
-                f"\rSearching {query_normal}: Results: {len(results)} "
+                f"\rSearching {FitToScreen(query_normal)}: {len(results)}"
             )
-            if len(results) == 0:
-                return False
-            else:
+            if results:
                 console.print(f"Results for [white]{query_normal}[/white]:")
+                console.print(f"- - Enter Different Search Term")
+                console.print(f"+ - Skip Book")
                 for i in range(len(results)):
                     book_title = textwrap.shorten(
                         results[i].select(".bookTitle")[0].text.strip(),
@@ -233,8 +250,18 @@ def SearchBook(fileName):
                         placeholder="...",
                     )
                     console.print(f"{i} - {book_title}")
-                selection = int(Prompt.ask("Please select book", default=0))
-                ClearLine(len(results) + 2)
+                selection = Prompt.ask(
+                    "Please Select Book - Leave Blank For Default:)",
+                    default="0",
+                )
+                ClearLine(len(results) + 4)
+                if selection == "+":
+                    return False
+                if selection == "-":
+                    ClearLine()
+                    manual_search = True
+                    continue
+                selection = int(selection)
                 book_title = (
                     results[selection].select(".bookTitle")[0].text.strip()
                 )
@@ -245,6 +272,9 @@ def SearchBook(fileName):
                     results[selection].select(".bookTitle")[0]["href"]
                 )
                 return book_title, book_author, book_image
+            else:
+                ClearLine()
+                manual_search = True
 
 
 def ConfirmMetadata():
@@ -268,16 +298,13 @@ def ConfirmMetadata():
                 book.save(file)
                 console.print(f"{book_data[0]} - Updated!")
             except KeyError as e:
-                print(e)
                 console.print(
                     f"\r[red]ERROR - {FitToScreen(fileName)} - Skpping!"
                 )
                 ErroredFile(inProgressFolder, fileName)
         else:
             ClearLine()
-            console.print(
-                f"\r[red]ERROR - {FitToScreen(fileName)} - No Results!"
-            )
+            console.print(f"\r[red]NOTE - {FitToScreen(fileName)} - Skipping")
             old_file_path = inProgressFolder + fileName
             new_file_path = erroredFolder + fileName
             os.rename(old_file_path, new_file_path)
