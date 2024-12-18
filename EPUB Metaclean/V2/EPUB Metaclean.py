@@ -203,7 +203,7 @@ def SearchBook(fileName):
                         f"Please Enter Search Term (Leave Blank To Skip)",
                         default="",
                     ).replace(" ", "+")
-                    ClearLine(3)
+                    ClearLine(2)
                     if query == "":
                         SPrint(f"[red]Skipping {fileName}![/red]", 1)
                         return False
@@ -225,6 +225,23 @@ def SearchBook(fileName):
                     "Author": book_author,
                     "URL": book_url,
                 }
+            else:
+                SPrint(
+                    "[red]NO RESULTS FOUND![/red] Please enter a different search term",
+                    1,
+                )
+                SPrint(f"Manual Search For [white]{fileName}[/white]")
+                query = Prompt.ask(
+                    f"Please Enter Search Term (Leave Blank To Skip)",
+                    default="",
+                ).replace(" ", "+")
+                ClearLine(2)
+                if query == "":
+                    SPrint(f"[red]Skipping {fileName}![/red]", 1)
+                    return False
+                else:
+                    ClearLine()
+                    continue
 
 
 def GetCover(book_data):
@@ -281,12 +298,30 @@ def UpdateMetadata(fileName, file, book_data):
     meta.title = book_data["Title"]
     meta.set_author_list_from_string(book_data["Author"])
     ebookmeta.set_metadata(file, meta)
+    img_data = open(imagesFolder + book_data["Cover"], "rb").read()
     book = epubfile.Epub(file)
     cover_id = book.get_cover_image()
-    with open(imagesFolder + book_data["Cover"], "rb") as img:
-        img_data = img.read()
+    false_positives = ["images/cover.png"]
+    if not cover_id or cover_id in false_positives:
+        possible_tags = ["coverimagestandard", "cover.png"]
+        for tag in possible_tags:
+            try:
+                book.get_manifest_item(tag)
+                cover_id = tag
+            except:
+                continue
+
+            if cover_id:
+                break
+
+    if cover_id:
         book.write_file(cover_id, img_data)
-    book.save(file)
+        book.save(file)
+    else:
+        SPrint(
+            f"[red]Error - Could not find cover image tag in book...[/red]\n",
+            1,
+        )
     SPrint(f"Updating Metadata For {fileName}, Done!", 1)
 
 
@@ -353,6 +388,7 @@ def Main():
             CleanBook(fileName, inProgressFolder + fileName)
             book_data = SearchBook(fileName)
             if not book_data:
+                SPrint("")
                 continue
             book_data["Cover"] = GetCover(book_data)
             UpdateMetadata(fileName, inProgressFolder + fileName, book_data)
