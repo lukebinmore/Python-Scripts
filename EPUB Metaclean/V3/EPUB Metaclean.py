@@ -1,3 +1,4 @@
+# region Imports
 from tkinter import *
 from tkinter.ttk import *
 from PIL import Image, ImageTk
@@ -20,7 +21,10 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 import undetected_chromedriver as uc
 
+# endregion
 
+
+# region Classes
 class Window:
     GAP = 0.003
     PADDING = 5
@@ -31,6 +35,132 @@ class Window:
     DEFAULT_IMAGE_URL = "https://images.squarespace-cdn.com/content/v1/5fc7868e04dc9f2855c99940/32f738d4-e4b9-4c61-bfc0-e813699cdd3c/laura-barrett-illustrator-beloved-girls-book-cover.jpg"
     DISABLED_COLOR = "#636363"
 
+    class TopFrame:
+        def __init__(self, parent):
+            self.parent = parent
+
+            self.frame = Frame(parent.left_frame, padding=parent.PADDING)
+            self.frame.pack(side="top", anchor="n", fill=X)
+
+            self.progress_bar_label = Label(self.frame)
+            self.progress_bar = Progressbar(
+                self.frame, orient=HORIZONTAL, mode="determinate"
+            )
+            self.progress_bar_percent = Label(self.frame)
+            self.download_btn = Button(self.frame, text="Download New Books")
+            self.process_btn = Button(self.frame, text="Process EPUB Files")
+            self.upload_btn = Button(self.frame, text="Upload To Play Books")
+
+        def show_progress_bar(self, label=None):
+            if label:
+                self.progress_bar_label.config(text=label)
+
+            self.progress_bar["value"] = 0
+            self.progress_bar_percent.config(text="0.0%")
+
+            self.progress_bar_label.pack(side=LEFT)
+            self.progress_bar.pack(
+                fill=BOTH, expand=True, side=LEFT, padx=self.parent.PADDING
+            )
+            self.progress_bar_percent.pack(
+                side=LEFT, padx=(0, self.parent.PADDING)
+            )
+
+        def update_progress_bar(self, progress=1, override=False):
+            self.progress_bar["value"] += progress
+
+            if override:
+                self.progress_bar["value"] = progress
+
+            progress_percent = (
+                self.progress_bar["value"] / self.progress_bar["maximum"]
+            ) * 100
+            progress_percent = round(progress_percent, 2)
+            self.progress_bar_percent.config(text=f"{progress_percent}%")
+
+        def show_task_btns(self):
+            self.download_btn.pack(fill=BOTH, expand=True, side=LEFT)
+            self.process_btn.pack(fill=BOTH, expand=True, side=LEFT)
+            self.upload_btn.pack(fill=BOTH, expand=True, side=LEFT)
+
+        def hide(self):
+            for widget in self.frame.winfo_children():
+                widget.pack_forget()
+
+    class MiddleFrame:
+        def __init__(self, parent):
+            self.parent = parent
+
+            self.frame = Frame(parent.left_frame, padding=parent.PADDING)
+            self.frame.pack(side="top", anchor="n", fill=BOTH, expand=True)
+
+            self.canvas = Canvas(
+                self.frame, background="black", highlightbackground="black"
+            )
+            self.canvas.pack(side=LEFT, fill=BOTH, expand=True)
+
+            self.scrollbar = Scrollbar(
+                self.frame, orient=VERTICAL, command=self.canvas.yview
+            )
+            self.scrollbar.pack(side=RIGHT, fill=Y, padx=(parent.PADDING, 0))
+            self.canvas.configure(yscrollcommand=self.scrollbar.set)
+
+            self.content_window = Frame(self.canvas, style="NB.TFrame")
+            self.canvas.create_window(
+                (0, 0), window=self.content_window, anchor="nw"
+            )
+
+        def update_idle_tasks(self):
+            self.parent.root.update_idletasks()
+            self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+            self.canvas.yview_moveto(1.0)
+
+    class BottomFrame:
+        def __init__(self, parent):
+            self.parent = parent
+
+            self.frame = Frame(
+                parent.left_frame, padding=parent.PADDING, height=45
+            )
+            self.frame.pack(
+                side="bottom", anchor="s", fill=X, pady=(parent.PADDING, 0)
+            )
+
+            self.text_input_label = Label(self.frame)
+            self.text_input = Entry(
+                self.frame, font=(parent.FONT, parent.FONT_SIZE)
+            )
+            self.text_input_btn = Button(self.frame)
+
+            self.true_btn = Button(self.frame)
+            self.false_btn = Button(self.frame, style="Red.TButton")
+
+            self.manual_btn = Button(self.frame)
+            self.prev_btn = Button(self.frame)
+            self.select_btn = Button(self.frame)
+            self.next_btn = Button(self.frame)
+            self.skip_btn = Button(self.frame, style="Red.TButton")
+
+        def show_text_input(self):
+            self.text_input_label.pack(side=LEFT, fill=Y)
+            self.text_input.pack(side=LEFT, fill=BOTH, expand=True)
+            self.text_input_btn.pack(side=LEFT, fill=Y)
+
+        def show_confirm_input(self):
+            self.true_btn.pack(fill=X, expand=True, side=LEFT)
+            self.false_btn.pack(fill=X, expand=True, side=RIGHT)
+
+        def show_nav_input(self):
+            self.manual_btn.pack(side=LEFT, fill=X, expand=True)
+            self.prev_btn.pack(side=LEFT, fill=X, expand=True)
+            self.select_btn.pack(side=LEFT, fill=X, expand=True)
+            self.next_btn.pack(side=LEFT, fill=X, expand=True)
+            self.skip_btn.pack(side=LEFT, fill=X, expand=True)
+
+        def hide(self):
+            for widget in self.frame.winfo_children():
+                widget.pack_forget()
+
     def __init__(self):
         self.root = Tk()
         self.is_running = True
@@ -38,8 +168,8 @@ class Window:
         self.style = Style()
 
         self.root.title("EPUB Metaclean V3")
-        # self.root.state("zoomed")
-        self.root.minsize(1200, 600)
+        self.root.state("zoomed")
+        self.root.minsize(1300, 700)
         self.root.config(
             background="black",
             padx=self.PADDING,
@@ -130,11 +260,11 @@ class Window:
         )
         self.style.theme_use("EMCTheme")
 
-        self.CreateLayout()
+        self.create_layout()
         self._wrap_methods()
 
-        self.right_frame.bind("<Configure>", self.AutoResizeImage)
-        self.UpdateImage(self.DEFAULT_IMAGE_URL)
+        self.right_frame.bind("<Configure>", self.auto_resize_image)
+        self.update_image(self.DEFAULT_IMAGE_URL)
 
         self.poll_updates_task = self.root.after(100, self._poll_gui_updates)
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -187,138 +317,18 @@ class Window:
                 setattr(self, attr_name, wrapped)
 
     def _update_idle_tasks(self):
-        self.root.update_idletasks()
-        self.middle_canvas.configure(
-            scrollregion=self.middle_canvas.bbox("all")
-        )
-        self.middle_canvas.yview_moveto(1.0)
+        self.middle_frame.update_idle_tasks()
 
-    def CreateLayout(self):
-        self.CreateLeftFrame()
-        self.CreateRightFrame()
-        self.ShowTaskButtons()
-
-    def CreateLeftFrame(self):
+    def create_layout(self):
         self.left_frame = Frame(self.root, padding=self.PADDING + self.BORDER)
         self.left_frame.place(
             relwidth=(2 - self.GAP) / 3, relheight=1.0, relx=0.0, rely=0.0
         )
 
-        self.top_frame = Frame(self.left_frame, padding=self.PADDING)
-        self.top_frame.pack(side="top", anchor="n", fill=X)
-        self.progress_bar_label = Label(self.top_frame)
-        self.progress_bar = Progressbar(
-            self.top_frame, orient=HORIZONTAL, mode="determinate"
-        )
-        self.progress_bar_percent = Label(self.top_frame)
-        self.process_files_button = Button(
-            self.top_frame,
-            text="Process EPUB Files",
-        )
-        self.download_book_button = Button(
-            self.top_frame, text="Download New Books"
-        )
-        self.upload_books_button = Button(
-            self.top_frame, text="Upload To Play Books"
-        )
-        self.archive_books_button = Button(
-            self.top_frame, text="Move To Arvhive"
-        )
+        self.top_frame = self.TopFrame(self)
+        self.middle_frame = self.MiddleFrame(self)
+        self.bottom_frame = self.BottomFrame(self)
 
-        self.middle_frame = Frame(self.left_frame, padding=self.PADDING)
-        self.middle_frame.pack(side="top", anchor="n", fill=BOTH, expand=True)
-        self.middle_canvas = Canvas(
-            self.middle_frame,
-            background="black",
-            highlightbackground="black",
-        )
-        self.middle_canvas.pack(side=LEFT, fill=BOTH, expand=True)
-        self.middle_scrollbar = Scrollbar(
-            self.middle_frame,
-            orient=VERTICAL,
-            command=self.middle_canvas.yview,
-        )
-        self.middle_scrollbar.pack(side=RIGHT, fill=Y, padx=(self.PADDING, 0))
-        self.middle_canvas.configure(yscrollcommand=self.middle_scrollbar.set)
-        self.progress_window = Frame(self.middle_canvas, style="NB.TFrame")
-        self.middle_canvas.create_window(
-            (0, 0), window=self.progress_window, anchor="nw"
-        )
-
-        self.bottom_frame = Frame(
-            self.left_frame, padding=self.PADDING, height=45
-        )
-        self.bottom_frame.pack(
-            side="bottom", anchor="s", fill=X, pady=(self.PADDING, 0)
-        )
-        self.text_input_label = Label(self.bottom_frame)
-        self.text_input = Entry(
-            self.bottom_frame, font=(self.FONT, self.FONT_SIZE)
-        )
-        self.text_enter_button = Button(self.bottom_frame)
-        self.confirm_button = Button(self.bottom_frame)
-        self.reject_button = Button(self.bottom_frame, style="Red.TButton")
-        self.manual_button = Button(self.bottom_frame)
-        self.prev_button = Button(self.bottom_frame)
-        self.select_button = Button(self.bottom_frame)
-        self.next_button = Button(self.bottom_frame)
-        self.skip_button = Button(self.bottom_frame, style="Red.TButton")
-
-    def InsertSpacerFrame(self, container):
-        Label(container, text="   ").pack(fill=X)
-
-    def HideFrame(self, frame):
-        for widget in frame.winfo_children():
-            widget.pack_forget()
-
-    def ShowProgressBar(self, label=None):
-        if label:
-            self.progress_bar_label.config(text=label)
-
-        self.progress_bar["value"] = 0
-        self.progress_bar_percent.config(text="0.0%")
-
-        self.progress_bar_label.pack(side=LEFT)
-        self.progress_bar.pack(
-            fill=BOTH, expand=True, side=LEFT, padx=self.PADDING
-        )
-        self.progress_bar_percent.pack(side=LEFT, padx=(0, self.PADDING))
-
-    def UpdateProgressBar(self, progress=1, override=False):
-        self.progress_bar["value"] += progress
-
-        if override:
-            self.progress_bar["value"] = progress
-
-        progress_percent = (
-            self.progress_bar["value"] / self.progress_bar["maximum"]
-        ) * 100
-        progress_percent = round(progress_percent, 2)
-        self.progress_bar_percent.config(text=f"{progress_percent}%")
-
-    def ShowTaskButtons(self):
-        self.process_files_button.pack(fill=BOTH, expand=True, side=LEFT)
-        self.download_book_button.pack(fill=BOTH, expand=True, side=LEFT)
-        self.upload_books_button.pack(fill=BOTH, expand=True, side=LEFT)
-        self.archive_books_button.pack(fill=BOTH, expand=True, side=LEFT)
-
-    def ShowTextInput(self):
-        self.text_input_label.pack(side=LEFT, fill=Y)
-        self.text_input.pack(side=LEFT, fill=BOTH, expand=True)
-        self.text_enter_button.pack(side=LEFT, fill=Y)
-
-    def ShowConfirmInput(self):
-        self.confirm_button.pack(fill=X, expand=True, side=LEFT)
-        self.reject_button.pack(fill=X, expand=True, side=RIGHT)
-
-    def ShowNavInput(self):
-        self.manual_button.pack(side=LEFT, fill=X, expand=True)
-        self.prev_button.pack(side=LEFT, fill=X, expand=True)
-        self.select_button.pack(side=LEFT, fill=X, expand=True)
-        self.next_button.pack(side=LEFT, fill=X, expand=True)
-        self.skip_button.pack(side=LEFT, fill=X, expand=True)
-
-    def CreateRightFrame(self):
         self.right_frame = Frame(self.root, padding=self.PADDING)
         self.right_frame.place(
             relwidth=(1 - self.GAP) / 3,
@@ -330,11 +340,13 @@ class Window:
         self.image_window = Label(self.right_frame)
         self.image_window.pack(fill=BOTH, expand=True)
 
-    def UpdateImage(self, image_url=None, image_data=None):
+        self.top_frame.show_task_btns()
+
+    def update_image(self, image_url=None, image_data=None):
         if image_url or image_data:
             if image_url:
                 response = requests.get(
-                    image_url, stream=True, headers=HEADERS
+                    image_url, stream=True, headers=C.HEADERS
                 )
             self.image_original = Image.open(
                 BytesIO(response.content if image_url else image_data)
@@ -342,9 +354,9 @@ class Window:
             self.image_original = self.image_original.resize(
                 (1600, 2560), Image.Resampling.LANCZOS
             )
-        self.ResizeImage()
+        self.resize_image()
 
-    def ResizeImage(self):
+    def resize_image(self):
         width = self.right_frame.winfo_width()
         height = self.right_frame.winfo_height()
 
@@ -355,138 +367,255 @@ class Window:
             self.image_window.config(image=self.image_tk)
             self.image_window.image = self.image_tk
 
-    def AutoResizeImage(self, event):
-        self.ResizeImage()
+    def auto_resize_image(self, event):
+        self.resize_image()
 
-    def Pack(self, widget, fill=X, *args, **kwargs):
-        widget.pack(*args, fill=fill, **kwargs)
+    def pack(self, widget, *args, **kwargs):
+        if "fill" not in kwargs:
+            kwargs["fill"] = X
 
-    def Config(self, widget, **kwargs):
+        widget.pack(*args, **kwargs)
+
+    def config(self, widget, **kwargs):
         widget.config(**kwargs)
 
-    def Destroy(self, widget):
+    def destroy(self, widget):
         widget.destroy()
 
 
-ui = Window()
-CURRENT_FOLDER = os.getcwd() + "\\"
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/538.39 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-}
-SOURCE_FOLDER = CURRENT_FOLDER + "Source\\"
-CHROME_PROFILE = CURRENT_FOLDER + "Chrome Profile\\"
-COMPLETED_FOLDER = CURRENT_FOLDER + "Completed\\"
-IN_PROGRESS_FOLDER = CURRENT_FOLDER + "In Progress\\"
-ERRORED_FOLDER = CURRENT_FOLDER + "Errored\\"
-ARCHIVE_FOLDER = CURRENT_FOLDER + "Archive\\"
-STRING_TO_REMOVE = "OceanofPDF.com"
-GOOD_READS_URL = "https://www.goodreads.com"
-GOOD_READS_DEFAULT_IMAGE = (
-    "https://dryofg8nmyqjw.cloudfront.net/images/no-cover.png"
-)
-DOWNLOAD_STAGES = 5
-PROCESS_STAGES = 9
-UPLOAD_STAGES = 7
+class Book:
+    def __init__(self, **kwargs):
+        self.title = None
+        self.author = None
+        self.series = None
+        self.series_index = None
+        self.cover = None
+        self.cover_url = None
+        self.cover_id = None
+        self.goodreads_url = None
+        self.goodreads_id = None
+        self.oceanofpdf_url = None
+        self.oceanofpdf_has_epub = True
+        self.file_name = None
+        self.file_path = None
+        self.current_directory = None
 
+    def __str__(self):
+        return f"{self.title} By {self.author}"
 
-# region General Utility Functions
-def Setup():
-    ui.Config(ui.download_book_button, command=DownloadNewBook)
-    ui.Config(ui.process_files_button, command=ProcessFiles)
-    ui.Config(ui.upload_books_button, command=UploadBooks)
-    ui.Config(ui.archive_books_button, command=MoveToArchive)
+    def display_book(self, index, total_results):
+        output = f" - Result {index + 1} Of {total_results}:\n\n"
+        output += f" * Book Title: {self.title}\n\n"
+        output += f" * Book Author: {self.author}\n\n"
 
-    CheckFolders()
-    CheckFiles()
+        if self.series:
+            output += f" * Series: {self.series}"
 
+        if self.series_index:
+            output += f", Book #{self.series_index}\n\n"
 
-def CheckFolders():
-    thread = threading.Thread(target=CheckFoldersWorker, daemon=True)
-    thread.start()
+        ui.update_image(image_data=self.cover)
 
+        return output
 
-def CheckFoldersWorker():
-    folders = [
-        SOURCE_FOLDER,
-        COMPLETED_FOLDER,
-        IN_PROGRESS_FOLDER,
-        ERRORED_FOLDER,
-        ARCHIVE_FOLDER,
-    ]
+    def get_oceanofpdf_search_data(self, result):
+        result_data = result.get_attribute("outerHTML")
+        soup = BeautifulSoup(result_data, "html.parser")
 
-    for folder in folders:
-        if not os.path.exists(folder):
-            os.mkdir(folder)
-
-
-def CheckFiles():
-    thread = threading.Thread(target=CheckFilesWorker, daemon=True)
-    thread.start()
-
-
-def CheckFilesWorker():
-    source_files = [
-        f for f in os.listdir(SOURCE_FOLDER) if f.endswith(".epub")
-    ]
-    completed_files = [
-        f for f in os.listdir(COMPLETED_FOLDER) if f.endswith(".epub")
-    ]
-
-    ui.Config(
-        ui.process_files_button,
-        state=("normal" if source_files else "disabled"),
-    )
-    ui.Config(
-        ui.archive_books_button,
-        state=("normal" if completed_files else "disabled"),
-    )
-    ui.Config(
-        ui.upload_books_button,
-        state=("normal" if completed_files else "disabled"),
-    )
-
-
-def CheckFileInFolder(file_name, directory):
-    if os.path.exists(directory + file_name):
-        subtask_log = DisplayLabel(
-            "Error - File Already Exists In Folder!", True
+        self.title = soup.select(".entry-title-link")[0].text.strip()
+        self.author = (
+            str(soup.select(".postmetainfo")[0])
+            .split("</strong>")[1]
+            .split("<br/>")[0]
+        )
+        self.cover_url = re.sub(
+            r"-\d+x\d+", "", soup.select(".post-image")[0]["src"]
+        )
+        self.cover = requests.get(
+            self.cover_url, stream=True, headers=C.HEADERS
+        ).content
+        self.oceanofpdf_url = soup.select(".entry-title-link")[0]["href"]
+        self.oceanofpdf_has_epub = (
+            True if "epub" in re.split(r"[/-]", self.oceanofpdf_url) else False
         )
 
-        if InputConfirm("Do You Want To Replace This File?"):
-            os.remove(directory + file_name)
-        else:
-            file_counter = 1
-            temp_name = file_name
+    def get_goodreads_search_data(self, result):
+        result_data = result.get_attribute("outerHTML")
+        soup = BeautifulSoup(result_data, "html.parser")
 
-            while os.path.exists(directory + temp_name):
-                temp_name = temp_name.replace(".epub", "")
-                end_chars = temp_name.split(" ")[-1]
+        self.title = soup.select(".bookTitle")[0].text.strip()
+        self.author = soup.select(".authorName")[0].text.strip()
 
-                if re.search(r"\(\d+\)", end_chars):
-                    temp_name = re.sub(r" \(\d+\)", "", temp_name)
+        patterns = [
+            r"\(([^)]+),\s*#?\d+(\.\d+)?\)",  # (Series Name, #1) (Series Name, 1) (Series Name, 1.5)
+            r"\(([^)]+)\s*#?\d+(\.\d+)?\)",  # (Series Name #1) (Series Name 1) (Series Name 1.5)
+            r"\(([^)]+),\s*Book\s*#?\d+(\.\d+)?\)",  # (Series Name, Book #1) (Series Name, Book 1) (Series Name, Book 1.5)
+            r"\(([^)]+)\s*Book\s*#?\d+(\.\d+)?\)",  # (Series Name Book #1) (Series Name Book 1) (Series Name Book 1.5)
+        ]
 
-                temp_name = f"{temp_name} ({file_counter}).epub"
-                file_counter += 1
+        for pattern in patterns:
+            match = re.search(pattern, self.title)
+            if match:
+                self.series = match.group(1).strip()
 
-            file_name = temp_name
+                series_index_match = re.search(r"\d+(\.\d+)?", match.group(0))
+                self.series_index = (
+                    float(series_index_match.group(0))
+                    if series_index_match
+                    else None
+                )
 
-        ui.Destroy(subtask_log)
+                self.title = re.sub(pattern, "", self.title).strip()
+                break
 
-    return file_name
+        self.goodreads_id = re.split(
+            r"/|\.|-", soup.select(".bookTitle")[0]["href"]
+        )[3]
+        self.goodreads_url = (
+            C.GOOD_READS_URL.replace("/search?q=", "")
+            + "/book/show/"
+            + self.goodreads_id
+        )
+        response = requests.get(self.goodreads_url)
+
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.content, "html.parser")
+            self.cover_url = soup.select(".BookCover__image")[0].select("img")[
+                0
+            ]["src"]
+            self.cover = requests.get(self.cover_url, stream=True).content
+
+    def get_file_data(self, file):
+        meta = ebookmeta.get_metadata(file)
+        book = epubfile.Epub(file)
+
+        self.title = meta.title
+        self.author = meta.author_list_to_string()
+        self.series = meta.series if meta.series else None
+        self.series_index = meta.series_index if meta.series_index else None
+        self.release_data = meta.publish_info if meta.publish_info else None
+
+        cover_id = self.get_cover_id(book)
+        self.cover_id = cover_id if cover_id else None
+        self.cover = book.read_file(cover_id) if cover_id else None
+
+        goodreads_id = file.split(" - ")[0]
+        self.goodreads_id = goodreads_id if goodreads_id.isdigit() else None
+
+        self.file_name = file.split("\\")[-1]
+        self.file_path = file
+        self.current_directory = self.file_path.replace(self.file_name, "")
+
+    def get_cover_id(self, book):
+        cover_id = None
+        false_positives = ["images/cover.png"]
+
+        try:
+            cover_id = book.get_cover_image()
+        except:
+            pass
+
+        if not cover_id or cover_id in false_positives:
+            possible_tags = [
+                "coverimagestandard",
+                "cover.png",
+                "cover-image",
+                "cover",
+            ]
+
+            for tag in possible_tags:
+                try:
+                    book.get_manifest_item(tag)
+                    cover_id = tag
+                except:
+                    continue
+
+                if cover_id:
+                    break
+
+        if not cover_id:
+            print("Possible Tags:")
+            for item in book.get_manifest_items():
+                print(item)
+
+            display_label(
+                " # Cover Tag Could Not Be Found!\n - Please Check Terminal Log For Possible Tags\n - Please Submit These And Epub File On Github For Fixes",
+                True,
+            )
+            return None
+
+        return cover_id
+
+    def update_file_path(self):
+        self.file_path = os.path.join(self.current_directory, self.file_name)
+
+    def override_book(self, book):
+        attributes = [
+            attr
+            for attr in dir(book)
+            if not callable(getattr(book, attr)) and not attr.startswith("__")
+        ]
+
+        for attr in attributes:
+            current_value = getattr(self, attr)
+            new_value = getattr(book, attr)
+            setattr(
+                self,
+                attr,
+                new_value if new_value is not None else current_value,
+            )
 
 
-def WaitForInput(input):
-    while True:
-        CheckRunningState()
+class C:
+    CURRENT_FOLDER = os.getcwd()
+    HEADERS = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/538.39 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    }
+    SOURCE_FOLDER = os.path.join(CURRENT_FOLDER, "Source")
+    CHROME_PROFILE = os.path.join(CURRENT_FOLDER, "Chrome Profile")
+    COMPLETED_FOLDER = os.path.join(CURRENT_FOLDER, "Completed")
+    IN_PROGRESS_FOLDER = os.path.join(CURRENT_FOLDER, "In Progress")
+    ERRORED_FOLDER = os.path.join(CURRENT_FOLDER, "Errored")
+    ARCHIVE_FOLDER = os.path.join(CURRENT_FOLDER, "Archive")
+    STRING_TO_REMOVE = "OceanofPDF.com"
+    GOOD_READS_URL = "https://www.goodreads.com/search?q="
+    GOOD_READS_DEFAULT_IMAGE = (
+        "https://dryofg8nmyqjw.cloudfront.net/images/no-cover.png"
+    )
+    OCEANOFPDF_URL = "https://oceanofpdf.com/?s="
+    DOWNLOAD_STAGES = 5
+    PROCESS_STAGES = 9
+    UPLOAD_STAGES = 8
+    GOOD_READS_STEPS = 10
 
-        if input.get():
-            break
-        else:
-            sleep(0.1)
+
+# endregion
 
 
-def FixQuery(input_string):
-    replacements = [f"_{STRING_TO_REMOVE}_", "-", "_", "(", ")", ".epub"]
+# region Generic Helpers
+def setup():
+    ui.config(ui.top_frame.download_btn, command=download_new_book)
+    ui.config(ui.top_frame.process_btn, command=process_files)
+    ui.config(ui.top_frame.upload_btn, command=upload_books)
+
+    check_folders()
+    check_files()
+
+
+def check_running_state():
+    if not ui.is_running:
+        sys.exit()
+
+
+# endregion
+
+
+# region Net Helpers
+def fix_query(input_string):
+    if not input_string:
+        return False
+
+    replacements = [f"_{C.STRING_TO_REMOVE}_", "-", "_", "(", ")", ".epub"]
     temp_string = input_string
 
     for part in replacements:
@@ -498,64 +627,104 @@ def FixQuery(input_string):
     return [query, query_normal]
 
 
-def CheckRunningState():
-    if not ui.is_running:
-        sys.exit()
+# endregion
 
 
-def GetFolderName(folder):
-    return folder.split("\\")[-2]
+# region File / Folder Helpers
+def check_folders():
+    thread = threading.Thread(target=check_folders_worker, daemon=True)
+    thread.start()
 
 
-def GetResponse(url, query_parameters={}):
-    while True:
-        CheckRunningState()
+def check_folders_worker():
+    folders = [
+        C.SOURCE_FOLDER,
+        C.COMPLETED_FOLDER,
+        C.IN_PROGRESS_FOLDER,
+        C.ERRORED_FOLDER,
+        C.ARCHIVE_FOLDER,
+    ]
 
-        try:
-            response = requests.get(
-                url, query_parameters, headers=HEADERS, timeout=15
-            )
-            return response
-        except requests.exceptions.Timeout:
-            sleep(1)
-        except Exception as e:
-            return requests.Response()
+    for folder in folders:
+        if not os.path.exists(folder):
+            os.mkdir(folder)
 
 
-def DisplayLabel(text="", error=False):
-    label = Label(
-        ui.progress_window,
-        text=text,
-        style="Red.TLabel" if error else "TLabel",
+def check_files():
+    thread = threading.Thread(target=check_files_worker, daemon=True)
+    thread.start()
+
+
+def check_files_worker():
+    source_files = [
+        f for f in os.listdir(C.SOURCE_FOLDER) if f.endswith(".epub")
+    ]
+    completed_files = [
+        f for f in os.listdir(C.COMPLETED_FOLDER) if f.endswith(".epub")
+    ]
+
+    ui.config(
+        ui.top_frame.process_btn,
+        state=("normal" if source_files else "disabled"),
     )
-    ui.Pack(label)
-
-    return label
-
-
-def UpdateLabel(source_label, text="", error=False):
-    ui.Config(
-        source_label, text=text, style="Red.TLabel" if error else "TLabel"
+    ui.config(
+        ui.top_frame.upload_btn,
+        state=("normal" if completed_files else "disabled"),
     )
 
 
-def MoveFile(file_name, source, destination, copy=False):
+def get_folder_name(folder):
+    return folder.split("\\")[-1]
+
+
+def check_file_in_folder(file_name, directory):
+    if os.path.exists(os.path.join(directory, file_name)):
+        subtask = display_label(" # File Already Exists In Folder!", True)
+
+        if input_confirm("Do You Want To Replace This File?"):
+            os.remove(os.path.join(directory, file_name))
+        else:
+            file_counter = 1
+            temp_name = file_name
+
+            while os.path.exists(os.path.join(directory, temp_name)):
+                temp_name = temp_name.replace(".epub", "")
+                end_chars = temp_name.split(" ")[-1]
+
+                if re.search(r"\(\d+\)", end_chars):
+                    temp_name = re.sub(r" \(\d+\)", "", temp_name)
+
+                temp_name = f"{temp_name} ({file_counter}).epub"
+                file_counter += 1
+
+            file_name = temp_name
+
+        ui.destroy(subtask)
+
+    return file_name
+
+
+def move_file(file_name, source, destination, copy=False):
     mode = "Copied" if copy else "Moved"
     mode_during = "Copying" if copy else "Moving"
-    subtask = DisplayLabel(
-        f" - {mode_during} {file_name} To {GetFolderName(destination)}..."
+    subtask = display_label(
+        f" - {mode_during} {file_name} To {get_folder_name(destination)}..."
     )
 
-    new_file_name = CheckFileInFolder(file_name, destination)
-    file_paths = (source + file_name, destination + new_file_name)
+    new_file_name = check_file_in_folder(file_name, destination)
+    file_paths = (
+        os.path.join(source, file_name),
+        os.path.join(destination, new_file_name),
+    )
 
     if copy:
         shutil.copy(file_paths[0], file_paths[1])
     else:
         shutil.move(file_paths[0], file_paths[1])
 
-    UpdateLabel(
-        subtask, f" - {new_file_name} {mode} To {GetFolderName(destination)}!"
+    update_label(
+        subtask,
+        f" - {new_file_name} {mode} To {get_folder_name(destination)}!",
     )
 
     return new_file_name, destination
@@ -564,119 +733,172 @@ def MoveFile(file_name, source, destination, copy=False):
 # endregion
 
 
-# region Input Handlers
-def InputConfirm(
-    text="ARE YOU SURE?",
-    accept_text="Yes",
-    reject_text="No",
-    accept_only=False,
-    confirm=False,
-):
-    text = f"\n * {text} *"
-    user_action = StringVar()
+# region UI Helpers
+def display_label(text="", error=False):
+    label = Label(
+        ui.middle_frame.content_window,
+        text=text,
+        style="Red.TLabel" if error else "TLabel",
+    )
+    ui.pack(label)
 
-    ui.Config(ui.confirm_button, text=accept_text)
-    ui.Config(
-        ui.reject_button,
-        text=reject_text,
-        state="disabled" if accept_only else None,
+    return label
+
+
+def update_label(source_label, text="", error=False):
+    ui.config(
+        source_label, text=text, style="Red.TLabel" if error else "TLabel"
     )
 
-    ui.HideFrame(ui.bottom_frame)
-    ui.ShowConfirmInput()
 
-    confirm_label = DisplayLabel(text)
+# endregion
 
-    ui.Config(ui.confirm_button, command=lambda: user_action.set(True))
-    ui.Config(ui.reject_button, command=lambda: user_action.set(False))
-    WaitForInput(user_action)
 
-    ui.Destroy(confirm_label)
-    ui.HideFrame(ui.bottom_frame)
+# region Input Helpers
+def wait_for_input(input):
+    while True:
+        check_running_state()
 
-    ui.Config(ui.reject_button, state="normal") if accept_only else None
+        if input.get():
+            break
+        else:
+            sleep(0.1)
+
+
+def input_confirm(
+    text="Are You Sure?",
+    true_text="Yes",
+    false_text="No",
+    true_only=False,
+    check_false=False,
+):
+    text = f"\n{text}"
+    user_action = StringVar()
+
+    ui.config(
+        ui.bottom_frame.true_btn,
+        command=lambda: user_action.set(True),
+        text=true_text,
+    )
+    ui.config(
+        ui.bottom_frame.false_btn,
+        command=lambda: user_action.set(False),
+        text=false_text,
+        state="disabled" if true_only else None,
+    )
+
+    confirm_label = display_label(text)
+
+    ui.bottom_frame.hide()
+    ui.bottom_frame.show_confirm_input()
+
+    wait_for_input(user_action)
+
+    ui.destroy(confirm_label)
+    ui.bottom_frame.hide()
 
     response = bool(int(user_action.get()))
 
-    if confirm and not response:
-        response = InputConfirm()
+    if check_false and not response:
+        response = not input_confirm()
 
     return response
 
 
-def InputText(text="", label_text="Search Term:", button_text="Enter"):
-    text = f"\n * {text} *"
+def input_text(text="", label_text="Search Term:", btn_text="Enter"):
+    text = f"\n{text}"
     user_input = StringVar()
 
-    ui.Config(ui.text_input_label, text=label_text)
-    ui.Config(ui.text_enter_button, text=button_text)
+    ui.config(ui.bottom_frame.text_input_label, text=label_text)
+    ui.config(ui.bottom_frame.text_input_btn, text=btn_text)
 
-    ui.HideFrame(ui.bottom_frame)
-    ui.ShowTextInput()
+    text_label = display_label(text)
 
-    text_label = DisplayLabel(text)
+    ui.bottom_frame.hide()
+    ui.bottom_frame.show_text_input()
 
-    ui.Config(
-        ui.text_enter_button,
+    ui.config(
+        ui.bottom_frame.text_input_btn,
         command=lambda: user_input.set(
-            ui.text_input.get() if ui.text_input.get() else "skip"
+            ui.bottom_frame.text_input.get()
+            if ui.bottom_frame.text_input.get()
+            else "^"
         ),
     )
 
-    WaitForInput(user_input)
+    wait_for_input(user_input)
 
-    ui.text_input.delete(0, END)
+    ui.bottom_frame.text_input.delete(0, END)
 
-    ui.Destroy(text_label)
-    ui.HideFrame(ui.bottom_frame)
+    ui.destroy(text_label)
+    ui.bottom_frame.hide()
+
+    if user_input.get() == "^":
+        if input_confirm():
+            return False
 
     return user_input.get()
 
 
-def InputNav(
-    total,
-    index=0,
+def input_nav(
     manual_text="Manual",
     prev_text="Prev",
     select_text="Select",
     next_text="Next",
     skip_text="Skip",
+    disable_manual=False,
+    disable_prev=False,
     disable_select=False,
+    disable_next=False,
+    disable_skip=False,
 ):
     state = ["normal", "disabled"]
     user_action = StringVar()
 
-    ui.Config(ui.manual_button, text=manual_text)
-    ui.Config(
-        ui.next_button,
-        text=next_text,
-        state=state[0] if index < total - 1 else state[1],
+    ui.config(
+        ui.bottom_frame.manual_btn,
+        text=manual_text,
+        state=state[1] if disable_manual else state[0],
+        command=lambda: user_action.set("manual"),
     )
-    ui.Config(
-        ui.select_button,
-        text=select_text,
-        state=state[0] if total > 0 else state[1],
-    )
-    ui.Config(ui.select_button, state=state[1]) if disable_select else None
-    ui.Config(
-        ui.prev_button,
+    ui.config(
+        ui.bottom_frame.prev_btn,
         text=prev_text,
-        state=state[0] if index > 0 else state[1],
+        state=state[1] if disable_prev else state[0],
+        command=lambda: user_action.set("prev"),
     )
-    ui.Config(ui.skip_button, text=skip_text if skip_text else "Skip")
+    ui.config(
+        ui.bottom_frame.select_btn,
+        text=select_text,
+        state=state[1] if disable_select else state[0],
+        command=lambda: user_action.set("/"),
+    )
+    ui.config(
+        ui.bottom_frame.next_btn,
+        text=next_text,
+        state=state[1] if disable_next else state[0],
+        command=lambda: user_action.set("next"),
+    )
+    ui.config(
+        ui.bottom_frame.skip_btn,
+        text=skip_text,
+        state=state[1] if disable_skip else state[0],
+        command=lambda: user_action.set(" "),
+    )
 
-    ui.HideFrame(ui.bottom_frame)
-    ui.ShowNavInput()
+    ui.bottom_frame.hide()
+    ui.bottom_frame.show_nav_input()
 
-    ui.Config(ui.manual_button, command=lambda: user_action.set("manual"))
-    ui.Config(ui.skip_button, command=lambda: user_action.set("skip"))
-    ui.Config(ui.next_button, command=lambda: user_action.set("next"))
-    ui.Config(ui.select_button, command=lambda: user_action.set("select"))
-    ui.Config(ui.prev_button, command=lambda: user_action.set("prev"))
+    wait_for_input(user_action)
 
-    WaitForInput(user_action)
+    ui.bottom_frame.hide()
 
-    ui.HideFrame(ui.bottom_frame)
+    if user_action.get() == " ":
+        if input_confirm():
+            return False
+
+    if user_action.get() == "/":
+        return True
 
     return user_action.get()
 
@@ -684,39 +906,39 @@ def InputNav(
 # endregion
 
 
-# region Selenium Functions
-def CreateChromeDriver():
-    subtask = DisplayLabel(" - Creating Automated Chrome Window...")
+# region Selenium Helpers
+def create_chrome_driver():
+    subtask = display_label(" - Creating Automated Chrome Window...")
     options = uc.ChromeOptions()
 
-    preferences_file = CHROME_PROFILE + "\\Default\\Preferences"
+    preferences_file = os.path.join(C.CHROME_PROFILE, "Default\\Preferences")
     if os.path.exists(preferences_file):
         os.remove(preferences_file)
 
-    options.add_argument(f"--user-data-dir={CHROME_PROFILE}")
+    options.add_argument(f"--user-data-dir={C.CHROME_PROFILE}")
     options.add_argument("--profile-directory=Default")
     options.add_argument("--disable-notifications")
     options.add_experimental_option(
-        "prefs", {"download.default_directory": SOURCE_FOLDER}
+        "prefs", {"download.default_directory": C.SOURCE_FOLDER}
     )
     web_driver = uc.Chrome(options=options)
     web_driver.minimize_window()
 
-    UpdateLabel(subtask, " - Chrome Window Created!")
+    update_label(subtask, " - Chrome Window Created!")
 
     return web_driver
 
 
-def SetDriverSize(web_driver):
+def focus_driver(web_driver):
     web_driver.execute_script("window.focus();")
     web_driver.set_window_size(width=100, height=400)
 
 
-def FindElement(web_driver, element, wait_time=15, click=False):
+def find_element(web_driver, element, wait_time=10, click=False):
     time_waited = 0
 
     while time_waited <= wait_time:
-        CheckRunningState()
+        check_running_state()
 
         try:
             found_element = WebDriverWait(web_driver, 1).until(
@@ -734,11 +956,11 @@ def FindElement(web_driver, element, wait_time=15, click=False):
     return False
 
 
-def FindElements(web_driver, element, wait_time=15):
+def find_elements(web_driver, element, wait_time=10):
     time_waited = 0
 
     while time_waited <= wait_time:
-        CheckRunningState()
+        check_running_state()
 
         try:
             found_elements = WebDriverWait(web_driver, 1).until(
@@ -751,852 +973,729 @@ def FindElements(web_driver, element, wait_time=15):
     return False
 
 
-def ClearDriverTabs(web_driver):
-    subtask = DisplayLabel(" - Clearing Extra Tabs...")
-    SetDriverSize(web_driver)
+def clear_driver_tabs(web_driver):
+    subtask = display_label(" - Clearing Extra Tabs...")
+    focus_driver(web_driver)
 
     while len(web_driver.window_handles) > 1:
         web_driver.close()
         web_driver.switch_to.window(web_driver.window_handles[0])
 
     web_driver.minimize_window()
-    UpdateLabel(subtask, " - Extra Tabs Cleared!")
+    update_label(subtask, " - Extra Tabs Cleared!")
 
 
 # endregion
 
 
-# region Process Files Functions
-def CleanBook(file_path):
-    subtask = DisplayLabel(" - Cleaning Book Content...")
-    book = epubfile.Epub(file_path)
-
-    for page in book.get_texts():
-        soup = book.read_file(page)
-        soup = soup.replace(STRING_TO_REMOVE, "")
-        book.write_file(page, soup)
-
-    UpdateLabel(subtask, " - Book Content Cleaned!")
+# region Generic Task Function Helpers
+def end_task_function(web_driver):
+    display_label()
+    web_driver.quit()
+    ui.top_frame.hide()
+    ui.top_frame.show_task_btns()
+    check_files()
 
 
-def SearchGoodReads(input):
-    query = FixQuery(input)
-    results = []
+def archive_files():
+    files = [f for f in os.listdir(C.COMPLETED_FOLDER) if f.endswith(".epub")]
+    subtask = display_label(" - Archiving Files...")
+
+    for file_name in files:
+        subtask_log = display_label(f" * {file_name}")
+        if input_confirm("Would You Like To Archive This Book?"):
+            move_file(file_name, C.COMPLETED_FOLDER, C.ARCHIVE_FOLDER)
+            ui.destroy(subtask_log)
+            continue
+
+        update_label(subtask_log, f" - {file_name} Skipped!")
+
+    update_label(subtask, " - Archiving Finished!")
+    return True
+
+
+def search_site_for_books(web_driver, label, query, url, element):
+    focus_driver(web_driver)
+    web_driver.get(f"{url}{query[0]}")
+
+    results = find_elements(web_driver, element)
+    web_driver.minimize_window()
+
+    if not results:
+        update_label(label, f" # No Results For {query[1]}!", True)
+        return False
+
+    return results
+
+
+def process_search_results(results, goodreads=False, oceanofpdf=False):
+    books = []
+    loading_label = display_label("Loading...")
+
+    for result in results:
+        check_running_state()
+
+        book = Book()
+        book.get_goodreads_search_data(result) if goodreads else None
+        book.get_oceanofpdf_search_data(result) if oceanofpdf else None
+        books.append(book)
+
+    ui.destroy(loading_label)
+    return books
+
+
+def book_results_menu(books, results_count):
     current_index = 0
-    book_template = {
-        "book_title": None,
-        "book_author": None,
-        "book_series": None,
-        "book_series_index": None,
-        "book_cover": None,
-    }
-    subtask = DisplayLabel(f" - Searching {query[1]} On GoodReads...")
-
-    def manual_search():
-        UpdateLabel(subtask, f" - Manual GoodReads Search:")
-        new_search = InputText(
-            text="Please Enter Your Search Term\n - (Leave Blank To Skip)"
-        )
-        if new_search == "skip":
-            return False
-        return FixQuery(new_search)
-
-    def get_book_details(book_soup):
-        book_title = book_soup.select(".bookTitle")[0].text.strip()
-        book_author = book_soup.select(".authorName")[0].text.strip()
-        book_series = None
-        book_series_index = None
-
-        if re.search(r", #\d+", book_title):
-            book_series = book_title.split("(")[1].split(")")[0]
-            book_series = re.sub(r", #\d+", "", book_series)
-            book_series_index = float(
-                re.search(r", #(\d+)", book_title).group(1)
-            )
-
-        book_url = GOOD_READS_URL + book_soup.select(".bookTitle")[0]["href"]
-        response = GetResponse(book_url)
-
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.content, "html.parser")
-            book_cover = soup.select(".BookCover__image")[0].select("img")[0][
-                "src"
-            ]
-
-        return {
-            "book_title": book_title,
-            "book_author": book_author,
-            "book_series": book_series,
-            "book_series_index": book_series_index,
-            "book_cover": book_cover,
-        }
-
-    def display_result(index):
-        UpdateLabel(
-            subtask, f" - Result {index + 1} Of {len(results)} For {query[1]}:"
-        )
-        book_data = get_book_details(results[index])
-        subtask_log_text = f"\n * Book Title: {book_data['book_title']}\n\n"
-        subtask_log_text += f" * Book Author: {book_data['book_author']}\n\n"
-
-        if book_data["book_series"]:
-            subtask_log_text += (
-                f" * Book Series: {book_data['book_series']}\n\n"
-            )
-            subtask_log_text += (
-                f" * Book Series Index: {book_data['book_series_index']}"
-            )
-
-        UpdateLabel(subtask_log, subtask_log_text)
-        ui.UpdateImage(book_data["book_cover"])
-
-        return book_data
 
     while True:
-        CheckRunningState()
+        check_running_state()
 
-        book_data = {}
-        url = f"{GOOD_READS_URL}/search?q={query[0]}"
-        response = GetResponse(url)
-
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.content, "html.parser")
-            results = soup.select("tr")
-            current_index = 0
-
-            if not results:
-                UpdateLabel(subtask, f" - No Results For {query[1]}!")
-
-            while True:
-                CheckRunningState()
-
-                subtask_log = DisplayLabel()
-
-                if results:
-                    loading_label = DisplayLabel("Loading...")
-                    book_data = display_result(current_index)
-                    ui.Destroy(loading_label)
-
-                user_action = InputNav(len(results), current_index)
-                ui.Destroy(subtask_log)
-
-                match (user_action):
-                    case "manual":
-                        query = manual_search()
-                        if not query:
-                            return book_template
-                        break
-                    case "skip":
-                        if InputConfirm(
-                            "Are You Sure You Want To Skip The Meta Search?"
-                        ):
-                            UpdateLabel(
-                                subtask,
-                                " - GoodReads Book Search Skipped!",
-                                True,
-                            )
-                            ui.HideFrame(ui.bottom_frame)
-                            return book_template
-                    case "next":
-                        current_index += 1
-                    case "prev":
-                        current_index += -1
-                    case "select":
-                        UpdateLabel(
-                            subtask, " - GoodReads Book Search Completed!"
-                        )
-                        ui.HideFrame(ui.bottom_frame)
-                        return book_data
-
-
-def GetCoverID(book):
-    cover_id = None
-    false_positives = ["images/cover.png"]
-
-    try:
-        cover_id = book.get_cover_image()
-    except:
-        pass
-
-    if not cover_id or cover_id in false_positives:
-        possible_tags = [
-            "coverimagestandard",
-            "cover.png",
-            "cover-image",
-            "cover",
-        ]
-
-        for tag in possible_tags:
-            try:
-                book.get_manifest_item(tag)
-                cover_id = tag
-            except:
-                continue
-
-            if cover_id:
-                break
-
-    if not cover_id:
-        print("Possible Tags:")
-        for item in book.get_manifest_items():
-            print(item)
-
-        DisplayLabel(
-            "Error - Cover Tag Could Not Be Found!\n - Please Check Terminal Log For Possible Tags\n - Please Submit These And Epub File On Github For Fixes",
-            True,
+        book_result = display_label()
+        update_label(
+            book_result,
+            books[current_index].display_book(current_index, results_count),
         )
-        return None
 
-    return cover_id
-
-
-def GetCover(url, file):
-    skip_confirm = False
-    subtask = DisplayLabel(f" - Confirming Cover Image...")
-    subtask_log = DisplayLabel()
-
-    book = epubfile.Epub(file)
-    cover_id = GetCoverID(book)
-
-    if url == GOOD_READS_DEFAULT_IMAGE and cover_id:
-        UpdateLabel(
-            subtask_log, " - Missing Book Cover!, Pulling From EPUB..."
+        user_action = input_nav(
+            manual_text="New Search",
+            skip_text="Cancel",
+            select_text=(
+                "Select"
+                if books[current_index].oceanofpdf_has_epub
+                else "NO EPUB FOUND"
+            ),
+            disable_prev=False if current_index > 0 else True,
+            disable_select=not books[current_index].oceanofpdf_has_epub,
+            disable_next=False if current_index + 1 < results_count else True,
         )
-        ui.UpdateImage(image_data=book.read_file(cover_id))
+        ui.destroy(book_result)
 
-    while cover_id:
-        url = None
+        match (user_action):
+            case "next":
+                current_index += 1
+            case "prev":
+                current_index += -1
+            case _:
+                return user_action, current_index
 
-        if skip_confirm or not InputConfirm(
-            "Do You Want To Use This Cover?", confirm=True
-        ):
-            skip_confirm = False
-            formats = (".jpg", ".jpeg", ".png")
 
-            url = InputText(
-                text="Please Enter An Image URL\n - (Leave Blank To Use Default)",
-                label_text="URL:",
-            )
+# endregion
 
-            if url == "skip":
-                url = GOOD_READS_DEFAULT_IMAGE
 
-            if not url.lower().endswith(formats):
-                skip_confirm = True
-                UpdateLabel(
-                    subtask_log,
-                    "Not Accepted Format, Must Be JPG or PNG!",
-                    True,
-                )
-                continue
+# region OceanOfPDF Download Helpers
+def download_oceanofpdf_epub(web_driver, book):
+    subtask = display_label(f" - Downloading {book.title}...")
 
-            if not GetResponse(url).status_code == 200:
-                skip_confirm = True
-                UpdateLabel(
-                    subtask_log,
-                    "Error - Image Not Found, Please Try Again!",
-                    True,
-                )
-                continue
+    focus_driver(web_driver)
+    web_driver.get(book.oceanofpdf_url)
 
-            ui.UpdateImage(url)
-        else:
-            ui.Destroy(subtask_log)
-            break
-
-    if not cover_id:
-        UpdateLabel(
+    if not find_element(
+        web_driver,
+        (
+            By.XPATH,
+            "//input[@src='https://media.oceanofpdf.com/epub-button.jpg']",
+        ),
+        click=True,
+    ):
+        web_driver.minimize_window()
+        update_label(
             subtask,
-            " - Unable To Retrieve Cover ID In Manifest!",
+            " # Failed To Find Download Button! - Blame OceanOfPDF!",
+            True,
         )
         return False
 
-    UpdateLabel(subtask, " - Cover Image Confirmed!")
+    web_driver.minimize_window()
 
-    img = ui.image_original.convert("RGB")
-    img_data = BytesIO()
-    img.save(img_data, format="jpeg")
+    if not wait_for_download(C.SOURCE_FOLDER):
+        return False
 
-    return img_data.getvalue()
+    update_label(subtask, f" - {book.title} Downloaded!")
+    return True
 
 
-def UpdateMetadata(book_data, file):
-    subtask = DisplayLabel(" - Updating Book Metadata...")
-    subtask_log = DisplayLabel(" * Getting Data From Book...")
-    meta = ebookmeta.get_metadata(file)
+def wait_for_download(source_folder):
+    time_waited = 0
+    old_files_count = len(
+        [f for f in os.listdir(source_folder) if f.endswith(".epub")]
+    )
 
-    def update_book_data(text, new_data, old_data):
-        UpdateLabel(subtask_log, f" * {text} Updated!")
-        return book_data[new_data] if book_data[new_data] else old_data
+    while True:
+        check_running_state()
 
-    meta.title = update_book_data("Title", "book_title", meta.title)
-    meta.set_author_list_from_string(
-        update_book_data(
-            "Authors", "book_author", meta.author_list_to_string()
+        new_files_count = len(
+            [f for f in os.listdir(source_folder) if f.endswith(".epub")]
         )
-    )
-    meta.series = update_book_data("Series", "book_series", meta.series)
-    meta.series_index = update_book_data(
-        "Series Index", "book_series_index", meta.series_index
-    )
-    ebookmeta.set_metadata(file, meta)
 
-    if book_data["book_cover"]:
-        book = epubfile.Epub(file)
-        cover_id = GetCoverID(book)
-        book.write_file(cover_id, book_data["book_cover"])
-        book.save(file)
-        UpdateLabel(subtask_log, " * Cover Updated!")
-    ui.Destroy(subtask_log)
+        if new_files_count > old_files_count:
+            return True
 
-    UpdateLabel(subtask, " - Book Metadata Updated!")
+        sleep(1)
+        time_waited += 1
 
-
-def RenameFile(file_name, directory):
-    subtask = DisplayLabel(" - Renaming EPUB File...")
-    meta = ebookmeta.get_metadata(directory + file_name)
-
-    new_name = f"{meta.title} - "
-    new_name += meta.author_list_to_string().replace(", ", " - ")
-    new_name = new_name.replace(":", "") + ".epub"
-    if not new_name == file_name:
-        new_name = CheckFileInFolder(new_name, directory)
-
-        os.rename(directory + file_name, directory + new_name)
-
-    UpdateLabel(subtask, f" - EPUB File Renamed: {new_name}")
-    return new_name
-
-
-def DeleteSourceFiles(file_name):
-    subtask = DisplayLabel(" - Deleting Source File...")
-
-    if InputConfirm("Would You Like To Delete The Source File?"):
-        if os.path.exists(SOURCE_FOLDER + file_name):
-            os.remove(SOURCE_FOLDER + file_name)
-            UpdateLabel(subtask, " - Source File Deleted!")
-        else:
-            DisplayLabel(f"{file_name} Not Found In {SOURCE_FOLDER}!")
-    else:
-        UpdateLabel(subtask, " - Source File Not Deleted!")
-
-
-def ProcessFiles():
-    thread = threading.Thread(target=ProcessFilesWorker, daemon=True)
-    thread.start()
-
-
-def ProcessFilesWorker():
-    files = [f for f in os.listdir(SOURCE_FOLDER) if f.endswith(".epub")]
-    ui.Config(ui.progress_bar, maximum=PROCESS_STAGES * len(files))
-    task_label = DisplayLabel(f"Processing {len(files)} Files...")
-
-    ui.HideFrame(ui.top_frame)
-    ui.ShowProgressBar("Processing Files:")
-
-    for index, file_name in enumerate(files):
-        task = DisplayLabel(f"Would You Like To Process This File?")
-        source_file_name = file_name
-
-        if not InputConfirm(file_name):
-            UpdateLabel(task, f"Skipping File: {file_name}!", True)
-            ui.InsertSpacerFrame(ui.progress_window)
-            ui.UpdateProgressBar(PROCESS_STAGES * (index + 1), True)
-            continue
-
-        UpdateLabel(task, f"Processing File: {file_name}...")
-
-        try:
-            current_directory = SOURCE_FOLDER
-            file_name, current_directory = MoveFile(
-                file_name, current_directory, IN_PROGRESS_FOLDER, True
-            )
-            ui.UpdateProgressBar()
-
-            CleanBook(current_directory + file_name)
-            ui.UpdateProgressBar()
-
-            book_data = SearchGoodReads(file_name)
-            ui.UpdateProgressBar()
-
-            book_data["book_cover"] = GetCover(
-                book_data["book_cover"], current_directory + file_name
-            )
-            ui.UpdateProgressBar()
-
-            UpdateMetadata(book_data, current_directory + file_name)
-            ui.UpdateProgressBar()
-
-            file_name = RenameFile(file_name, current_directory)
-            ui.UpdateProgressBar()
-
-            file_name, current_directory = MoveFile(
-                file_name, current_directory, COMPLETED_FOLDER
-            )
-            ui.UpdateProgressBar()
-
-            DeleteSourceFiles(source_file_name)
-            ui.UpdateProgressBar()
-
-            UpdateLabel(task, f"Processing File: {file_name}, Done!")
-            ui.UpdateProgressBar()
-
-            ui.InsertSpacerFrame(ui.progress_window)
-            ui.UpdateImage(ui.DEFAULT_IMAGE_URL)
-        except Exception as e:
-            UpdateLabel(task, f"Processing File: {file_name} - FAILED!", True)
-            ui.UpdateProgressBar(PROCESS_STAGES * (index + 1), True)
-            tb = traceback.format_exc()
-            print(tb)
-            last_line = tb.strip().split("\n")[-1]
-
-            ui.InsertSpacerFrame(ui.progress_window)
-            DisplayLabel(f"Error Details: {last_line}", True)
-            MoveFile(file_name, current_directory, ERRORED_FOLDER)
-            ui.InsertSpacerFrame(ui.progress_window)
-
-    UpdateLabel(task_label, f"Processing {len(files)} Files, Done!")
-    ui.HideFrame(ui.top_frame)
-    ui.ShowTaskButtons()
-    CheckFiles()
+        if time_waited == 30:
+            time_waited = 0
+            if not input_confirm(
+                "Download May Have Failed!\n - Please Check Download Progress In Chrome Window!"
+            ):
+                display_label(" # Download Has Failed!", True)
+                return False
 
 
 # endregion
 
 
-# region Google Upload Functions
-def CheckGoogleSignIn(web_driver):
-    subtask = DisplayLabel(" - Checking If You Are Logged In...")
+# region Process Files Helpers
+def clean_book(book):
+    subtask = display_label(" - Cleaning Book Content...")
+    book = epubfile.Epub(book.file_path)
+
+    for page in book.get_texts():
+        soup = book.read_file(page)
+        soup = soup.replace(C.STRING_TO_REMOVE, "")
+        book.write_file(page, soup)
+
+    update_label(subtask, " - Book Content Cleaned!")
+    return True
+
+
+def get_metadata_from_goodreads(web_driver, book):
+    query = fix_query(book.title)
+    subtask = display_label(f" - Searching {query[1]} On GoodReads...")
+
+    while True:
+        check_running_state()
+
+        current_index = 0
+        books = []
+
+        if not query:
+            update_label(subtask, f" # Metadata Search Skipped!", True)
+            return book
+
+        update_label(subtask, f" - Searching {query[1]} On GoodReads...")
+        results = search_site_for_books(
+            web_driver, subtask, query, C.GOOD_READS_URL, (By.TAG_NAME, "tr")
+        )
+        ui.top_frame.update_progress_bar()
+
+        if results:
+            books = process_search_results(results, goodreads=True)
+            ui.top_frame.update_progress_bar()
+
+            user_action, current_index = book_results_menu(books, len(books))
+        else:
+            if input_confirm("Would You Like To Search Manually?"):
+                user_action = "manual"
+            else:
+                user_action = False
+
+        if user_action == "manual":
+            update_label(subtask, f" - Manual GoodReads Search:")
+            query_input = input_text(
+                text="Please Enter Your Search Term\n - (Leave Blank To Skip)"
+            )
+
+            if not query_input:
+                break
+            query = fix_query(query_input)
+            continue
+
+        if user_action == True:
+            update_label(subtask, " - GoodReads Search Completed!")
+            book.override_book(books[current_index])
+            break
+
+        if not user_action:
+            update_label(subtask, f" # Metadata Search Skipped!", True)
+            break
+
+    return book
+
+
+def get_cover_from_user(label):
+    while True:
+        url = input_text(
+            "Please Enter An Image URL\n - (Leave Black To Use Default)",
+            label_text="URL:",
+        )
+
+        if not url:
+            url = C.GOOD_READS_DEFAULT_IMAGE
+
+        if not url.lower().endswith((".jpg", ".jpeg", ".png")):
+            update_label(
+                label, " # Not Accepted Format!\n - Must Be JPG Or PNG!", True
+            )
+            continue
+
+        response = requests.get(url, stream=True)
+
+        if not response.status_code == 200:
+            update_label(label, " # Image Not Found, Please Try Again!", True)
+            continue
+
+        return url, response.content
+
+
+def select_cover(book):
+    subtask = display_label(f" - Confirming Cover Image...")
+
+    if not book.cover:
+        update_label(
+            subtask, " # Skipping Cover Image!\n - Can't Access Book's Cover!"
+        )
+        return book
+
+    subtask_log = display_label()
+
+    if book.cover_url == C.GOOD_READS_DEFAULT_IMAGE and book.cover_id:
+        update_label(
+            subtask_log, " - Missing Book Cover!, Pulling From EPUB..."
+        )
+        ui.update_image(image_data=book.cover)
+
+    while True:
+        if not input_confirm("Do You Want To Use This Cover?"):
+            book.cover_url, book.cover = get_cover_from_user(subtask_log)
+
+            update_label(subtask, " - Confirming Cover Image...")
+            ui.update_image(image_data=book.cover)
+            continue
+
+        break
+
+    update_label(subtask, " - Cover Image Confirmed!")
+    ui.destroy(subtask_log)
+    return book
+
+
+def update_metadata(book):
+    subtask = display_label(" - Updating Book Metadata...")
+    subtask_log = display_label(" * Getting Data From Book...")
+
+    meta = ebookmeta.get_metadata(book.file_path)
+
+    meta.title = book.title
+    update_label(subtask_log, " * Book Title Updated!")
+
+    meta.set_author_list_from_string(book.author)
+    update_label(subtask_log, " * Book Author Updated!")
+
+    meta.series = book.series
+    update_label(subtask_log, " * Book Series Updated!")
+
+    meta.series_index = book.series_index
+    update_label(subtask_log, " * Book Series Index Updated!")
+
+    meta.publish_info = book.release_data
+    update_label(subtask_log, " * Release Date Updated!")
+
+    ebookmeta.set_metadata(book.file_path, meta)
+    if book.cover:
+        book_file = epubfile.Epub(book.file_path)
+        book_file.write_file(book.cover_id, book.cover)
+        book_file.save(book.file_path)
+        update_label(subtask_log, " * Cover Updated!")
+    ui.destroy(subtask_log)
+
+    update_label(subtask, " - Book Metadata Updated!")
+
+
+def delete_source_files(file_name):
+    subtask = display_label(" - Deleting Source File...")
+
+    if input_confirm("Would You Like To Delete The Source File?"):
+        if os.path.exists(os.path.join(C.SOURCE_FOLDER, file_name)):
+            os.remove(os.path.join(C.SOURCE_FOLDER, file_name))
+            update_label(subtask, " - Source File Deleted!")
+        else:
+            display_label(
+                f" # {file_name} Not Found In {C.SOURCE_FOLDER}!", True
+            )
+            return False
+    else:
+        update_label(subtask, " - Source File Not Deleted!")
+
+    return True
+
+
+def rename_file(book):
+    subtask = display_label(" - Renaming EPUB File...")
+
+    new_name = f"{book.title}"
+    new_name += (
+        f" ({book.series}, #{book.series_index})" if book.series else ""
+    )
+    new_name += " - " + book.author.replace(", ", " - ")
+    new_name = new_name.replace(":", "") + ".epub"
+    if not new_name == book.file_name:
+        new_name = check_file_in_folder(new_name, book.current_directory)
+
+        os.rename(
+            os.path.join(book.current_directory, book.file_name),
+            os.path.join(book.current_directory, new_name),
+        )
+
+        book.file_name = new_name
+        book.update_file_path()
+
+    update_label(subtask, f" - EPUB File Renamed: {new_name}")
+    return book
+
+
+# endregion
+
+
+# region Google Play Books Upload Helpers
+def check_play_books_logged_in(web_driver):
+    subtask = display_label(" - Checking If You Are Logged In...")
 
     while True:
         web_driver.get("https://play.google.com/books/uploads")
         element = (By.XPATH, "//span[text()='Sign in']")
 
-        if not FindElement(web_driver, element, wait_time=2, click=True):
-            UpdateLabel(subtask, " - Logged In!")
+        if not find_element(web_driver, element, wait_time=2, click=True):
+            update_label(subtask, " - Logged In!")
             return True
 
-        subtask_label = DisplayLabel("Not Logged In, Please Login Now.", True)
+        subtask_label = display_label("Not Logged In, Please Login Now.", True)
         web_driver.maximize_window()
-        response = InputConfirm(
+        response = input_confirm(
             text="Please Click Done When You Have Logged In.",
-            accept_text="Done",
-            reject_text="Cancel",
+            true_text="Done",
+            false_text="Cancel",
         )
-        SetDriverSize()
+        focus_driver()
         web_driver.minimize_window()
-        ui.Destroy(subtask_label)
+        ui.destroy(subtask_label)
 
         if not response:
-            UpdateLabel(subtask, " - Login Cancelled!", True)
+            update_label(subtask, " - Login Cancelled!", True)
             return False
 
-
-def OpenGoogleUploadDialog(web_driver):
-    element = (By.XPATH, "//span[text()='\n      Upload files']")
-    subtask = DisplayLabel(" - Accessing Upload Dialog...")
-
-    SetDriverSize(web_driver)
-
-    if not FindElement(web_driver, element, click=True):
-        UpdateLabel(subtask, " - Failed To Access Upload Dialog!", True)
-        return False
-
-    web_driver.minimize_window()
-
-    UpdateLabel(subtask, " - Upload Dialog Opened!")
-    return True
+        return True
 
 
-def CollectFilesForUpload(files):
+def get_files_for_upload(files):
     file_paths = []
-    subtask = DisplayLabel(" - Collecting EPUB Files...")
+    subtask = display_label(" - Collecting EPUB Files...")
 
     for file_name in files:
-        ui.UpdateProgressBar()
-        subtask_log = DisplayLabel(f"\n * {file_name}")
-        if InputConfirm("Would You Like To Upload This File?"):
-            file_paths.append(os.path.join(COMPLETED_FOLDER, file_name))
-            UpdateLabel(subtask_log, f" - {file_name} Added To Queue")
+        ui.top_frame.update_progress_bar()
+        subtask_log = display_label(f"\n * {file_name}")
+        if input_confirm("Would You Like To Upload This File?"):
+            file_paths.append(os.path.join(C.COMPLETED_FOLDER, file_name))
+            update_label(subtask_log, f" - {file_name} Added To Queue")
             continue
 
-        UpdateLabel(subtask_log, f" - {file_name} Skipped!")
+        update_label(subtask_log, f" - {file_name} Skipped!")
 
     if len(file_paths) == 0:
-        UpdateLabel(subtask, " - All Files Skipped, Nothing To Upload!", True)
+        update_label(subtask, " # All Files Skipped, Nothing To Upload!", True)
         return False
 
-    UpdateLabel(subtask, " - EPUB Files Collected!")
+    update_label(subtask, " - EPUB Files Collected!")
     return file_paths
 
 
-def UploadEpubFiles(web_driver, files):
-    subtask = DisplayLabel(" - Uploading Files To Play Books...")
-    element = (By.ID, ":0.contentEl")
+def upload_to_play_books(web_driver, files):
+    subtask = display_label(" - Uploading Files To Play Books...")
 
-    SetDriverSize(web_driver)
-    iframe = FindElement(web_driver, element)
+    focus_driver(web_driver)
+    find_element(
+        web_driver,
+        (By.XPATH, "//span[text()='\n      Upload files']"),
+        click=True,
+    )
+    iframe = find_element(web_driver, (By.ID, ":0.contentEl"))
 
-    if not iframe:
-        UpdateLabel(
-            " - Unable To Locate IFrame Container! - Blame Google!", True
-        )
+    if iframe:
+        iframe = find_element(iframe, (By.TAG_NAME, "iframe"))
+
+        if iframe:
+            web_driver.switch_to.frame(iframe)
+            file_input = find_element(
+                web_driver, (By.XPATH, "//input[@type='file']")
+            )
+
+            if file_input:
+                file_paths = "\n".join(files)
+                file_input.send_keys(file_paths)
+    else:
+        update_label(" # Unable To Upload Files!")
         return False
-
-    element = (By.TAG_NAME, "iframe")
-    iframe = FindElement(iframe, element)
-
-    if not iframe:
-        UpdateLabel(" - Unable To Locate IFrame! - Blame Google!", True)
-        return False
-
-    web_driver.switch_to.frame(iframe)
-
-    element = (By.XPATH, "//input[@type='file']")
-    file_input = FindElement(web_driver, element)
-
-    if not file_input:
-        UpdateLabel(" - Unable To Locate File Input! - Blame Google!", True)
-        return False
-
-    file_paths = "\n".join(files)
-    file_input.send_keys(file_paths)
 
     web_driver.switch_to.default_content()
 
-    UpdateLabel(subtask, " - Files Added To Play Books Upload Queue!")
+    update_label(subtask, " - Files Added To Play Books Upload Queue!")
     return True
 
 
-def WaitForUpload(web_driver):
-    subtask = DisplayLabel(" - Waiting For Upload")
-    element = (By.ID, ":0.contentEl")
+def wait_for_play_books_upload(web_driver):
+    subtask = display_label(" - Waiting For Upload")
+    time_waited = 0
 
     while True:
-        tracker = FindElement(web_driver, element)
+        tracker = find_element(web_driver, (By.ID, ":0.contentEl"))
 
         if not tracker:
             break
 
-    web_driver.minimize_window()
-    UpdateLabel(subtask, " - Books Uploaded!")
-
-
-def UploadBooks():
-    thread = threading.Thread(target=UploadBooksWorker, daemon=True)
-    thread.start()
-
-
-def UploadBooksWorker():
-    ui.HideFrame(ui.top_frame)
-    ui.ShowProgressBar("Uploading Files:")
-
-    files = [f for f in os.listdir(COMPLETED_FOLDER) if f.endswith(".epub")]
-    task_label = DisplayLabel(f"Uploading {len(files)} Files...")
-    ui.Config(ui.progress_bar, maximum=UPLOAD_STAGES + len(files))
-
-    def end_function():
-        ui.InsertSpacerFrame(ui.progress_window)
-        web_driver.quit()
-        ui.HideFrame(ui.top_frame)
-        ui.ShowTaskButtons()
-        CheckFiles()
-
-    def upload_cancelled():
-        UpdateLabel(task_label, "File Upload Cancelled!", True)
-        end_function()
-
-    web_driver = CreateChromeDriver()
-    ui.UpdateProgressBar()
-
-    if not CheckGoogleSignIn(web_driver):
-        upload_cancelled()
-        return
-    ui.UpdateProgressBar()
-
-    if not OpenGoogleUploadDialog(web_driver):
-        upload_cancelled()
-        return
-    ui.UpdateProgressBar()
-
-    epubs_for_upload = CollectFilesForUpload(files)
-    if not epubs_for_upload:
-        upload_cancelled()
-        return
-    ui.UpdateProgressBar()
-
-    if not UploadEpubFiles(web_driver, epubs_for_upload):
-        upload_cancelled()
-        return
-    ui.UpdateProgressBar()
-
-    WaitForUpload(web_driver)
-    ui.UpdateProgressBar()
-
-    UpdateLabel(task_label, f"Uploading {len(files)} Files, Done!")
-    ui.UpdateProgressBar()
-    end_function()
-
-
-# endregion
-
-
-# region Archive Files Functions
-def MoveToArchive():
-    thread = threading.Thread(target=MoveToArchiveWorker, daemon=True)
-    thread.start()
-
-
-def MoveToArchiveWorker():
-    ui.HideFrame(ui.top_frame)
-    ui.ShowProgressBar("Archiving Files:")
-
-    files = [f for f in os.listdir(COMPLETED_FOLDER) if f.endswith(".epub")]
-    task_label = DisplayLabel(f"Archiving {len(files)} Files...")
-    ui.Config(ui.progress_bar, maximum=len(files) + 1)
-
-    for file_name in files:
-        subtask_log = DisplayLabel(f"\n * {file_name}")
-        ui.UpdateProgressBar()
-
-        if InputConfirm("Would You Like To Archive This File?"):
-            file_name = CheckFileInFolder(file_name, ARCHIVE_FOLDER)
-            MoveFile(file_name, COMPLETED_FOLDER, ARCHIVE_FOLDER)
-            ui.Destroy(subtask_log)
-            continue
-
-        UpdateLabel(subtask_log, f" - {file_name} Skipped!")
-        ui.Destroy(subtask_log)
-
-    UpdateLabel(task_label, f"{len(files)} Files Archived!")
-    ui.UpdateProgressBar()
-    ui.InsertSpacerFrame(ui.progress_window)
-
-
-# endregion
-
-
-# region Download Files Functions
-def DownloadEpubFile(web_driver, url, title):
-    subtask = DisplayLabel(f" - Downloading {title}...")
-    element = (
-        By.XPATH,
-        "//input[@src='https://media.oceanofpdf.com/epub-button.jpg']",
-    )
-
-    old_files_count = len(
-        [f for f in os.listdir(SOURCE_FOLDER) if f.endswith(".epub")]
-    )
-
-    SetDriverSize(web_driver)
-    web_driver.get(url)
-
-    if not FindElement(web_driver, element, click=True):
-        web_driver.minimize_window()
-        UpdateLabel(
-            subtask,
-            " - Failed To Find Download Button! - Blame OceanOfPDF!",
-            True,
-        )
-        return
-    web_driver.minimize_window()
-
-    waited_time = 0
-    while True:
-        CheckRunningState()
-
-        new_files_count = len(
-            [f for f in os.listdir(SOURCE_FOLDER) if f.endswith(".epub")]
-        )
-
-        if new_files_count > old_files_count:
-            break
-
+        time_waited += 1
         sleep(1)
-        waited_time += 1
 
-        if waited_time == 30:
-            if not InputConfirm("Has The Download Failed?"):
-                UpdateLabel(subtask, " - Download Has Failed!", True)
-                return
+        if time_waited == 30:
+            time_waited = 0
+            if not input_confirm(
+                "Upload May Have Failed!\n - Please Check Upload Progress In Chrome Window!\n - Have The Uploads Finished?"
+            ):
+                display_label(" # Upload Has Failed!", True)
+                return False
 
-    UpdateLabel(subtask, f" - {title} Downloaded!")
+    web_driver.minimize_window()
+    update_label(subtask, " - Books Uploaded!")
+    return True
 
 
-def DownloadNewBook():
-    thread = threading.Thread(target=DownloadNewBookWorker, daemon=True)
-    thread.start()
+# endregion
 
 
-def DownloadNewBookWorker():
-    task_label = DisplayLabel("Downloading New Books...")
-    web_driver = CreateChromeDriver()
-
-    def end_function():
-        ui.InsertSpacerFrame(ui.progress_window)
-        web_driver.quit()
-        ui.HideFrame(ui.top_frame)
-        ui.ShowTaskButtons()
-        CheckFiles()
+# region Task Worker Functions
+def download_new_book_worker():
+    task_label = display_label("Downloading New Books...")
+    web_driver = create_chrome_driver()
+    display_label()
 
     def download_cancelled():
-        UpdateLabel(task_label, "File Downloads Cancelled!", True)
-        end_function()
+        update_label(task_label, " # File Downloads Cancelled!", True)
+        end_task_function(web_driver)
 
     def downloads_finished():
-        UpdateLabel(task_label, "File Downloads Finished!")
-        end_function()
+        update_label(task_label, "File Downloads Finished!")
+        end_task_function(web_driver)
 
-    def get_book_details(book_soup):
-        book_title = book_soup.select(".entry-title-link")[0].text.strip()
-        book_author = (
-            str(book_soup.select(".postmetainfo")[0])
-            .split("</strong>")[1]
-            .split("<br/>")[0]
-        )
-        book_release_date = book_soup.select(".entry-time")[0].text.strip()
-        book_cover_url = re.sub(
-            r"-\d+x\d+", "", book_soup.select(".post-image")[0]["src"]
-        )
-        book_url = book_soup.select(".entry-title-link")[0]["href"]
-        book_has_epub = (
-            True if "epub" in re.split(r"[/-]", book_url) else False
-        )
+    def process_download():
+        update_label(task, f" - Found Result For {query[1]}!")
+        download_oceanofpdf_epub(web_driver, books[current_index])
+        ui.top_frame.update_progress_bar()
 
-        return {
-            "book_title": book_title,
-            "book_author": book_author,
-            "book_release_data": book_release_date,
-            "book_cover_url": book_cover_url,
-            "book_url": book_url,
-            "book_has_epub": book_has_epub,
-        }
-
-    def display_result(results_count, index):
-        result_data = results[index].get_attribute("outerHTML")
-        soup = BeautifulSoup(result_data, "html.parser")
-        book_data = get_book_details(soup)
-
-        task_log_text = f" - Result {index} Of {results_count}:\n\n"
-        task_log_text += f" * Book Title: {book_data['book_title']}\n\n"
-        task_log_text += f" * Book Author: {book_data['book_author']}\n\n"
-        task_log_text += f" * Book Published: {book_data['book_release_data']}"
-
-        previous_image = ui.image_original
-        ui.UpdateImage(book_data["book_cover_url"])
-
-        while True:
-            CheckRunningState()
-
-            if not ui.image_original == previous_image:
-                break
-
-            sleep(0.5)
-
-        UpdateLabel(task_log, task_log_text)
-
-        return (
-            book_data["book_url"],
-            book_data["book_has_epub"],
-            book_data["book_title"],
-        )
+        clear_driver_tabs(web_driver)
+        display_label()
+        ui.top_frame.update_progress_bar()
 
     while True:
-        CheckRunningState()
+        check_running_state()
 
-        element = (By.TAG_NAME, "article")
         current_index = 0
+        books = []
 
-        ui.UpdateImage(ui.DEFAULT_IMAGE_URL)
-        ui.HideFrame(ui.top_frame)
-        ui.ShowProgressBar("Downloading New Book:")
-        ui.Config(ui.progress_bar, maximum=DOWNLOAD_STAGES)
+        ui.update_image(ui.DEFAULT_IMAGE_URL)
+        ui.top_frame.hide()
+        ui.top_frame.show_progress_bar("Downloading New Book:")
+        ui.config(ui.top_frame.progress_bar, maximum=C.DOWNLOAD_STAGES)
 
-        query = FixQuery(
-            InputText(
+        query = fix_query(
+            input_text(
                 "What Book Would You Like To Search For?\n - (Leave Blank To Cancel)",
                 label_text="Search:",
             )
         )
 
-        if query[1] == "skip":
-            if not InputConfirm():
-                continue
+        if not query:
+            download_cancelled()
+            return
+        ui.top_frame.update_progress_bar()
+
+        task = display_label(f" - Searching For {query[1]}...")
+        results = search_site_for_books(
+            web_driver, task, query, C.OCEANOFPDF_URL, (By.TAG_NAME, "article")
+        )
+        ui.top_frame.update_progress_bar()
+
+        if results:
+            update_label(task, f" - {len(results)} Results For {query[1]}")
+            books = process_search_results(results, oceanofpdf=True)
+            ui.top_frame.update_progress_bar()
+
+            user_action, current_index = book_results_menu(books, len(books))
+        else:
+            if input_confirm("Would You Like To Search Manually?"):
+                user_action = "manual"
+            else:
+                user_action = False
+
+        if user_action == "manual":
+            update_label(task, " - Starting New Search...")
+            continue
+
+        if user_action == True:
+            process_download()
+
+            if not input_confirm("Do You Want To Search For Another Book?"):
+                downloads_finished()
+                return
+            return
+
+        if not user_action:
             download_cancelled()
             return
 
-        task = DisplayLabel(f" - Searching For {query[1]}...")
-        ui.UpdateProgressBar()
 
-        web_driver.get(f"https://oceanofpdf.com/?s={query[0]}")
-        ui.UpdateProgressBar()
+def process_files_worker():
+    files = [f for f in os.listdir(C.SOURCE_FOLDER) if f.endswith(".epub")]
+    ui.config(ui.top_frame.progress_bar, maximum=C.PROCESS_STAGES * len(files))
+    task_label = display_label(f"Processing {len(files)} Files...")
+    web_driver = create_chrome_driver()
+    display_label()
 
-        SetDriverSize(web_driver)
-        results = FindElements(web_driver, element, 5)
-        web_driver.minimize_window()
-        if not results:
-            UpdateLabel(task, f" - No Results For {query[1]}!", True)
+    ui.top_frame.hide()
+    ui.top_frame.show_progress_bar("Processing Files:")
+
+    for index, file_name in enumerate(files):
+        task = display_label(f"Would You Like To Process This File?")
+        source_file_name = file_name
+
+        if not input_confirm(file_name):
+            update_label(task, f" # File: {file_name} Skipped!", True)
+            display_label()
+            ui.top_frame.update_progress_bar(
+                C.PROCESS_STAGES * (index + 1), True
+            )
             continue
-        ui.UpdateProgressBar()
 
-        while True:
-            CheckRunningState()
+        update_label(task, f"Processing File: {file_name}...")
 
-            UpdateLabel(task, f" - {len(results)} Results For {query[1]}")
+        book = Book()
+        book.get_file_data(os.path.join(C.SOURCE_FOLDER, file_name))
 
-            loading_label = DisplayLabel("Loading...")
-            task_log = DisplayLabel()
-            result_url, result_has_epub, result_title = display_result(
-                len(results), current_index
+        try:
+
+            book.file_name, book.current_directory = move_file(
+                book.file_name,
+                book.current_directory,
+                C.IN_PROGRESS_FOLDER,
+                True,
             )
-            ui.Destroy(loading_label)
+            book.update_file_path()
+            ui.top_frame.update_progress_bar()
 
-            user_action = InputNav(
-                len(results),
-                current_index,
-                manual_text="New Search",
-                skip_text="Cancel",
-                select_text="Select" if result_has_epub else "NO EPUB FOUND",
-                disable_select=not result_has_epub,
+            clean_book(book)
+            ui.top_frame.update_progress_bar()
+
+            book = get_metadata_from_goodreads(web_driver, book)
+            ui.top_frame.update_progress_bar()
+
+            book = select_cover(book)
+            ui.top_frame.update_progress_bar()
+
+            update_metadata(book)
+            ui.top_frame.update_progress_bar()
+
+            book = rename_file(book)
+            book.update_file_path()
+            ui.top_frame.update_progress_bar()
+
+            book.file_name, book.current_directory, move_file(
+                book.file_name, book.current_directory, C.COMPLETED_FOLDER
             )
-            ui.Destroy(task_log)
+            book.update_file_path()
+            ui.top_frame.update_progress_bar()
 
-            match (user_action):
-                case "manual":
-                    ui.InsertSpacerFrame(ui.progress_window)
-                    break
-                case "skip":
-                    if not InputConfirm():
-                        continue
-                    download_cancelled()
-                    return
-                case "next":
-                    current_index += 1
-                case "prev":
-                    current_index += -1
-                case "select":
-                    UpdateLabel(task, f" - Found Result For {query[1]}!")
-                    DownloadEpubFile(web_driver, result_url, result_title)
-                    ui.UpdateProgressBar()
+            delete_source_files(source_file_name)
+            ui.top_frame.update_progress_bar()
 
-                    ClearDriverTabs(web_driver)
-                    ui.InsertSpacerFrame(ui.progress_window)
-                    ui.UpdateProgressBar()
+            update_label(task, f"Processing File: {file_name}, Done!")
+            ui.top_frame.update_progress_bar()
 
-                    if not InputConfirm(
-                        "Do You Want To Search For Another Book?"
-                    ):
-                        downloads_finished()
-                        return
-                    break
+            display_label()
+            ui.update_image(ui.DEFAULT_IMAGE_URL)
+        except Exception as e:
+            update_label(task, f"Processing File: {file_name} - FAILED!", True)
+            ui.top_frame.update_progress_bar(
+                C.PROCESS_STAGES * (index + 1), True
+            )
+            tb = traceback.format_exc()
+
+            last_line = tb.strip().split("\n")[-1]
+
+            display_label()
+            display_label(f"Error Details: {last_line}", True)
+            move_file(book.file_name, book.current_directory, C.ERRORED_FOLDER)
+            display_label()
+
+    update_label(task_label, f"Processing {len(files)} Files, Done!")
+    end_task_function(web_driver)
+
+
+def upload_books_worker():
+    ui.top_frame.hide()
+    ui.top_frame.show_progress_bar("Uploading Files:")
+
+    files = [f for f in os.listdir(C.COMPLETED_FOLDER) if f.endswith(".epub")]
+    task_label = display_label(f"Uploading {len(files)} Files...")
+    ui.config(
+        ui.top_frame.progress_bar, maximum=C.UPLOAD_STAGES + (len(files) * 2)
+    )
+
+    def upload_cancelled():
+        update_label(task_label, " # File Upload Cancelled!", True)
+        end_task_function(web_driver)
+
+    web_driver = create_chrome_driver()
+    display_label()
+    ui.top_frame.update_progress_bar()
+
+    if not check_play_books_logged_in(web_driver):
+        upload_cancelled()
+        return
+    ui.top_frame.update_progress_bar()
+
+    epubs_for_upload = get_files_for_upload(files)
+    if not epubs_for_upload:
+        upload_cancelled()
+        return
+    ui.top_frame.update_progress_bar()
+
+    if not upload_to_play_books(web_driver, epubs_for_upload):
+        upload_cancelled()
+        return
+    ui.top_frame.update_progress_bar()
+
+    wait_for_play_books_upload(web_driver)
+    ui.top_frame.update_progress_bar()
+
+    archive_files()
+    ui.top_frame.update_progress_bar()
+
+    update_label(task_label, f"Uploading {len(files)} Files, Done!")
+    ui.top_frame.update_progress_bar()
+    end_task_function(web_driver)
 
 
 # endregion
 
 
-def Main():
-    Setup()
-    ui.root.mainloop()
+# region Task Functions
+def download_new_book():
+    thread = threading.Thread(target=download_new_book_worker, daemon=True)
+    thread.start()
 
 
-Main()
+def process_files():
+    thread = threading.Thread(target=process_files_worker, daemon=True)
+    thread.start()
+    pass
+
+
+def upload_books():
+    thread = threading.Thread(target=upload_books_worker, daemon=True)
+    thread.start()
+
+
+# endregion
+
+
+ui = Window()
+setup()
+ui.root.mainloop()
