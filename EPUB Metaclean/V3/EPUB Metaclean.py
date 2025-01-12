@@ -1535,7 +1535,7 @@ def download_new_book_worker():
             if not input_confirm("Do You Want To Search For Another Book?"):
                 downloads_finished()
                 return
-            return
+            continue
 
         if not user_action:
             download_cancelled()
