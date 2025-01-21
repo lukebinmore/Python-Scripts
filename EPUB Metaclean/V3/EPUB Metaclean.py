@@ -1146,14 +1146,15 @@ def wait_for_download(source_folder):
 
 
 # region Process Files Helpers
-def clean_book(book):
+def clean_book(book_data):
     subtask = display_label(" - Cleaning Book Content...")
-    book = epubfile.Epub(book.file_path)
+    book = epubfile.Epub(book_data.file_path)
 
     for page in book.get_texts():
         soup = book.read_file(page)
         soup = soup.replace(C.STRING_TO_REMOVE, "")
         book.write_file(page, soup)
+    book.save(book_data.file_path)
 
     update_label(subtask, " - Book Content Cleaned!")
     return True
