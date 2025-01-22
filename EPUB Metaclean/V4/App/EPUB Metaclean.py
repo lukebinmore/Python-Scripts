@@ -1,31 +1,30 @@
 # region Imports
-from PyQt5.QtWidgets import QApplication, QWidget
+import sys
+from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QHBoxLayout, QVBoxLayout
+from PyQt5.QtWebEngineWidgets import QWebEngineView
+from PyQt5.QtCore import QUrl
+from PyQt5.QtGui import QIcon
 
 # endregion
 
 
 # region Classes
-class EMApp:
+class UI(QMainWindow):
     def __init__(self):
-        self._ConfigureApp()
-        
-        self.app.exec_()
+        super(UI, self).__init__()
+
+        self.setWindowTitle("EPUB Metaclean - V4.0")
+        self.setWindowIcon(QIcon("icon.png"))
+
+        self.initUI()
     
-    def _ConfigureApp(self):
-        self.app = QApplication([])
-        self.app.setApplicationName("EPUB Metaclean")
-        self.app.setApplicationVersion("4.0")
+    def initUI(self):
+        self.showMaximized()
+        self.show()
 
-        self.window = QWidget()
-        self.window.showMaximized()
-        self.window.show()
-
-
-# endregion
-
-# region Globals
-ui = None
 # endregion
 
 if __name__ == "__main__":
-    ui = EMApp()
+    app = QApplication(sys.argv)
+    ui = UI()
+    sys.exit(app.exec_())
