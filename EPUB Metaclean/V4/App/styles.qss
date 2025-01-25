@@ -1,6 +1,38 @@
-QWidget{
+QWidget {
+    color: green;
+}
+
+QPushButton {
+    color: black;
+    background-color: white;
+}
+
+QFrame, QLabel, QProgressBar, QWebEngineView {
     background-color: black;
-    border-width: 10px;
-    border-style: solid;
-    border-color: orange;
+}
+
+QLabel, QProgressBar, #base, #nav_btns_box {
+    border: 0;
+}
+
+QFrame {
+    border: 2px solid white;
+}
+
+QPushButton:hover {
+    background-color: green;
+    color: white;
+}
+
+QPushButton:pressed {
+    background-color: darkgreen;
+    color: grey;
+}
+
+#cancel_button:hover, #false_button:hover {
+    background-color: red;
+}
+
+#cancel_button:pressed, #false_button:pressed {
+    background-color: darkred;
 }
