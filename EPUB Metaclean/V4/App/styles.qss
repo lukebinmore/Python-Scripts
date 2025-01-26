@@ -1,38 +1,58 @@
+/* Colour Pallet
+
+Primary: #4CBB17
+Primary Darkened: #2e720e
+Background: #323232
+Background Alt: #595959
+Red: #D2042D
+Red Darkened: #7d021b
+Black: #000000
+
+*/
+
 QWidget {
-    color: green;
-}
-
-QPushButton {
-    color: black;
-    background-color: white;
-}
-
-QFrame, QLabel, QProgressBar, QWebEngineView {
-    background-color: black;
-}
-
-QLabel, QProgressBar, #base, #nav_btns_box {
-    border: 0;
+    color: {primary_color};
+    background-color: {bg_color};
+    border-width: 0;
+    border-radius: 10;
+    font-size: {text_size}px;
+    
 }
 
 QFrame {
-    border: 2px solid white;
+    border: 2px solid {border_color};
+}
+
+QLabel {
+    border-width: 0;
+}
+
+QPushButton {
+    background-color: {button_color};
+}
+
+#base {
+    border: 0;
+}
+
+#nav_btns_box > QFrame {
+    border-width: 0;
 }
 
 QPushButton:hover {
-    background-color: green;
-    color: white;
+    background-color: {hover_bgcolor};
+    color: {hover_color};
 }
 
 QPushButton:pressed {
-    background-color: darkgreen;
-    color: grey;
+    background-color: {pressed_bgcolor};
 }
 
-#cancel_button:hover, #false_button:hover {
-    background-color: red;
+QPushButton[theme="warn"]:hover {
+    background-color: {hover_warn_bgcolor};
+    color: {hover_warn_color}
 }
 
-#cancel_button:pressed, #false_button:pressed {
-    background-color: darkred;
+QPushButton[theme="warn"]:pressed {
+    background-color: {pressed_warn_bgcolor};
 }
