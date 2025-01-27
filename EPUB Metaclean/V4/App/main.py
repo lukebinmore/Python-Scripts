@@ -223,6 +223,7 @@ class UI(QMainWindow):
         self.initNavBtns()
         self.initConfirmBtns()
         self.initStatus()
+        self.initCloseBtn()
 
         self.showMaximized()
         self.show()
@@ -328,6 +329,12 @@ class UI(QMainWindow):
 
         self.status_box.hide()
 
+    def initCloseBtn(self):
+        self.close_btn_box = Container(name="close_btn_box", verticle=False)
+        self.close_btn_box.setMargins(3, 3, 3, 3)
+
+        self.close_btn = PushButton(self.close_btn_box, text="X")
+
     def updateProgressBar(self, value=1, range=None, override=False):
         if range:
             self.progress_bar.setRange(0, range)
@@ -399,6 +406,7 @@ def start_download_books():
 
     ui.web_engine_box.show()
     ui.web_engine.setUrl(QUrl(C.OCEANOFPDF_URL))
+    hideUi()
 
 
 def start_process_books():
