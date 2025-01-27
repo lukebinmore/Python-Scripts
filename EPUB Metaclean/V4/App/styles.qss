@@ -1,15 +1,3 @@
-/* Colour Pallet
-
-Primary: #4CBB17
-Primary Darkened: #2e720e
-Background: #323232
-Background Alt: #595959
-Red: #D2042D
-Red Darkened: #7d021b
-Black: #000000
-
-*/
-
 QWidget {
     color: {primary_color};
     background-color: {bg_color};
@@ -25,6 +13,10 @@ QFrame {
 
 QLabel {
     border-width: 0;
+}
+
+QLabel[theme="warn"] {
+    color: {warn_color}
 }
 
 QPushButton {

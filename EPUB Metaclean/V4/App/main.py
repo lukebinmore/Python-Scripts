@@ -1,4 +1,3 @@
-# region Imports
 import sys
 import os
 from PyQt5.QtWidgets import *
@@ -7,23 +6,12 @@ from PyQt5.QtGui import *
 from PyQt5.QtWebEngineWidgets import *
 
 
-# endregion
+class V:
+    OCEANOFPDF_URL = "https://oceanofpdf.com/"
+
+    curr_process = "NONE"
 
 
-# region Packing Functions
-def resource_path(relative_path):
-    try:
-        base_path = sys._MEIPASS
-    except Exception:
-        base_path = os.path.abspath(".")
-
-    return os.path.join(base_path, relative_path)
-
-
-# endregion
-
-
-# region Classes
 class Container:
     PREFERRED = QSizePolicy.Preferred
 
@@ -91,7 +79,7 @@ class PushButton(QPushButton):
     ):
         super(PushButton, self).__init__(parent.W)
         self.setObjectName(name)
-        self.setProperty("theme", "warn") if warn else None
+        self.setProperty("theme", "warn" if warn else None)
         self.setText(text)
 
         hor_policy = hor_policy if hor_policy is not None else self.PREFERRED
@@ -100,15 +88,30 @@ class PushButton(QPushButton):
 
         parent.add(self)
 
+    def click(self, slot):
+        try:
+            self.clicked.disconnect()
+        except TypeError:
+            pass
+
+        self.clicked.connect(slot)
+
 
 class Label(QLabel):
     PREFERRED = QSizePolicy.Policy.Preferred
 
     def __init__(
-        self, parent, name=None, text=None, hor_policy=None, ver_policy=None
+        self,
+        parent,
+        name=None,
+        text=None,
+        hor_policy=None,
+        ver_policy=None,
+        warn=False,
     ):
         super(Label, self).__init__(parent.W)
         self.setObjectName(name)
+        self.setProperty("theme", "warn" if warn else None)
         self.setText(text)
 
         hor_policy = hor_policy if hor_policy is not None else self.PREFERRED
@@ -146,6 +149,14 @@ class WebEngineView(QWebEngineView):
 
         parent.add(self)
 
+    def urlChange(self, slot):
+        try:
+            self.urlChanged.disconnect()
+        except TypeError:
+            pass
+
+        self.urlChanged.connect(slot)
+
 
 class UI(QMainWindow):
     DEFAULT_MARGIN = 3, 3, 3, 3
@@ -167,6 +178,7 @@ class UI(QMainWindow):
         "hover_color": "#000000",
         "hover_bgcolor": "#4CBB17",
         "pressed_bgcolor": "#2e720e",
+        "warn_color": "#D2042D",
         "hover_warn_color": "#ffffff",
         "hover_warn_bgcolor": "#D2042D",
         "pressed_warn_bgcolor": "#7d021b",
@@ -217,13 +229,13 @@ class UI(QMainWindow):
 
         self.initProgressBar()
         self.initTaskLabel()
+        self.initWarnLabel()
         self.initFiller()
         self.initTaskBtns()
         self.initWebEngine()
         self.initNavBtns()
         self.initConfirmBtns()
         self.initStatus()
-        self.initCloseBtn()
 
         self.showMaximized()
         self.show()
@@ -244,12 +256,35 @@ class UI(QMainWindow):
         self.progress_box.hide()
 
     def initTaskLabel(self):
-        self.task_label_box = Container(self.base, "task_label_box")
+        self.task_label_box = Container(
+            self.base, "task_label_box", verticle=False
+        )
         self.task_label_box.setMargins(*self.DEFAULT_MARGIN)
 
-        self.task_label = Label(self.task_label_box, "task_label")
+        self.restart_btn = PushButton(
+            self.task_label_box, text=" ↺ ", warn=True
+        )
+        self.task_label = Label(
+            self.task_label_box, "task_label", hor_policy=self.EXPANDING
+        )
         self.task_label.setAlignment(Qt.AlignCenter)
+        self.close_btn = PushButton(self.task_label_box, text=" X ", warn=True)
+
         self.task_label_box.hide()
+
+    def initWarnLabel(self):
+        self.warn_label_box = Container(self.base, "warn_label_box")
+        self.warn_label_box.setSpacing(40)
+
+        self.warn_label_title = Label(
+            self.warn_label_box, text="Are You Sure?", warn=True
+        )
+        self.warn_label_title.setAlignment(Qt.AlignCenter)
+
+        self.warn_label = Label(self.warn_label_box)
+        self.warn_label.setAlignment(Qt.AlignCenter)
+
+        self.warn_label_box.hide()
 
     def initFiller(self):
         self.filler_box = Container(
@@ -274,6 +309,8 @@ class UI(QMainWindow):
             self.task_btns_box, "upload_books_btn", "Upload Existing Books"
         )
 
+        self.task_btns_box.hide()
+
     def initWebEngine(self):
         self.web_engine_box = Container(
             self.base, "web_engine_box", ver_policy=self.EXPANDING
@@ -291,18 +328,16 @@ class UI(QMainWindow):
         self.nav_btns_top = Container(
             self.nav_btns_box, "nav_btns_top", verticle=False
         )
-        self.prev_button = PushButton(self.nav_btns_top, "prev_button", "PREV")
-        self.select_button = PushButton(
-            self.nav_btns_top, "select_button", "SELECT"
-        )
-        self.next_button = PushButton(self.nav_btns_top, "next_buton", "NEXT")
+        self.prev_btn = PushButton(self.nav_btns_top, "prev_btn", "PREV")
+        self.select_btn = PushButton(self.nav_btns_top, "select_btn", "SELECT")
+        self.next_btn = PushButton(self.nav_btns_top, "next_buton", "NEXT")
 
         self.nav_btns_bottom = Container(self.nav_btns_box, verticle=False)
-        self.manual_button = PushButton(
-            self.nav_btns_bottom, "manual_button", "Manual"
+        self.manual_btn = PushButton(
+            self.nav_btns_bottom, "manual_btn", "Manual"
         )
-        self.cancel_button = PushButton(
-            self.nav_btns_bottom, "cancel_button", "Cancel", warn=True
+        self.cancel_btn = PushButton(
+            self.nav_btns_bottom, "cancel_btn", "Cancel", warn=True
         )
 
         self.nav_btns_box.hide()
@@ -311,9 +346,9 @@ class UI(QMainWindow):
         self.confirm_box = Container(self.base, "confirm_box", verticle=False)
         self.confirm_box.setMargins(*self.DEFAULT_MARGIN)
 
-        self.true_button = PushButton(self.confirm_box, "true_button", "YES")
-        self.false_button = PushButton(
-            self.confirm_box, "false_button", "NO", warn=True
+        self.true_btn = PushButton(self.confirm_box, "true_btn", "YES")
+        self.false_btn = PushButton(
+            self.confirm_box, "false_btn", "NO", warn=True
         )
 
         self.confirm_box.W.setVisible(False)
@@ -329,12 +364,6 @@ class UI(QMainWindow):
 
         self.status_box.hide()
 
-    def initCloseBtn(self):
-        self.close_btn_box = Container(name="close_btn_box", verticle=False)
-        self.close_btn_box.setMargins(3, 3, 3, 3)
-
-        self.close_btn = PushButton(self.close_btn_box, text="X")
-
     def updateProgressBar(self, value=1, range=None, override=False):
         if range:
             self.progress_bar.setRange(0, range)
@@ -344,6 +373,36 @@ class UI(QMainWindow):
                 self.progress_bar.setValue(value)
             else:
                 self.progress_bar.setValue(self.progress_bar.value() + value)
+
+    def hideUI(self):
+        self.previous_ui = {
+            widget: widget.isVisible()
+            for widget in self.findChildren(QFrame)
+            if widget.objectName().endswith("_box")
+        }
+
+        for widget in self.previous_ui.keys():
+            widget.hide()
+
+        ui.base.show()
+
+    def restoreUI(self):
+        for widget, was_visable in self.previous_ui.items():
+            widget.setVisible(was_visable)
+
+    def confirmAction(self, title, text, action):
+        self.hideUI()
+
+        self.warn_label_box.show()
+        self.warn_label_title.setText(title)
+        self.warn_label.setText(text)
+
+        self.filler_box.show()
+
+        self.confirm_box.show()
+
+        self.true_btn.click(lambda: action())
+        self.false_btn.click(self.restoreUI)
 
 
 class Book:
@@ -366,67 +425,82 @@ class Book:
         return f"{self.title} By {self.author}"
 
 
-class C:
-    OCEANOFPDF_URL = "https://oceanofpdf.com/"
+class Downloads:
+    def __init__(self):
+        self.books = []
+
+        ui.hideUI()
+        ui.close_btn.click(
+            lambda: ui.confirmAction(
+                "Cancelling Download Task!",
+                "Are you sure you would like to cancel the download process?",
+                self.cancelDownloads,
+            )
+        )
+        ui.restart_btn.click(
+            lambda: ui.confirmAction(
+                "Restarting Download Task!",
+                "Are you sure you would like to restart the download process?",
+                self.restartDownloads,
+            )
+        )
+
+        ui.task_label_box.show()
+        ui.task_label.setText("Please Search For A Book:")
+
+        ui.web_engine_box.show()
+        ui.web_engine.setUrl(QUrl(v.OCEANOFPDF_URL))
+        ui.web_engine.urlChange(self.urlChanged)
+
+        ui.status_box.show()
+        ui.status.setText("WAITING FOR USER SEARCH...")
+
+    def cancelDownloads(self):
+        pass
+
+    def restartDownloads(self):
+        startDownloadBooks()
+
+    def urlChanged(self, url):
+        url = url.toString()
+
+        url_path = str(url).replace(v.OCEANOFPDF_URL, "")
+        print(url_path)
+
+        match url_path:
+            case _ if url_path.startswith("?s="):
+                ui.status.setText("WAITING FOR USER SELECTION...")
+            case _ if url_path.startswith("authors/"):
+                print("book Selected")
 
 
-# endregion
+def resource_path(relative_path):
+    try:
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
 
 
-# region General Helpers
 def setup():
-    ui.download_book_btn.clicked.connect(start_download_books)
-    ui.process_books_btn.clicked.connect(start_process_books)
-    ui.upload_books_btn.clicked.connect(start_upload_books)
+    ui.download_book_btn.click(startDownloadBooks)
+    ui.task_btns_box.show()
 
 
-# endregion
+def startDownloadBooks():
+    download_worker = Downloads()
 
 
-# region UI Helpers
-def hideUi():
-    ui.progress_box.hide()
-    ui.task_label_box.hide()
-    ui.filler_box.hide()
-    ui.task_btns_box.hide()
-    ui.web_engine_box.hide()
-    ui.nav_btns_box.hide()
-    ui.confirm_box.hide()
-    ui.status_box.hide()
-
-
-# endregion
-
-
-# region Task Functions
-def start_download_books():
-    hideUi()
-    ui.task_label_box.show()
-    ui.task_label.setText("Please Search For A Book:")
-
-    ui.web_engine_box.show()
-    ui.web_engine.setUrl(QUrl(C.OCEANOFPDF_URL))
-    hideUi()
-
-
-def start_process_books():
-    print("process")
-
-
-def start_upload_books():
-    print("upload")
-
-
-# endregion
-
-
-# region Main
 if __name__ == "__main__":
+    v = V
     app = QApplication(sys.argv)
     ui = UI()
+
+    download_worker = None
+    process_worker = None
+    upload_worker = None
 
     setup()
 
     sys.exit(app.exec())
-
-# endregion
