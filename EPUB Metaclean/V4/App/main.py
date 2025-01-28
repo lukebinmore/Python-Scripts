@@ -1,5 +1,6 @@
 import sys
 import os
+import asyncio
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
@@ -9,7 +10,9 @@ from PyQt5.QtWebEngineWidgets import *
 class V:
     OCEANOFPDF_URL = "https://oceanofpdf.com/"
 
-    curr_process = "NONE"
+    download_worker = None
+    process_worker = None
+    upload_worker = None
 
 
 class Container:
@@ -136,6 +139,18 @@ class ProgressBar(QProgressBar):
         parent.add(self)
 
 
+class WebEnginePage(QWebEnginePage):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.interceptor = None
+
+    def acceptNavigationRequest(self, url, _type, isMainFrame):
+        if self.interceptor:
+            return self.interceptor(url)
+
+        return True
+
+
 class WebEngineView(QWebEngineView):
     PREFERRED = QSizePolicy.Policy.Preferred
 
@@ -143,19 +158,17 @@ class WebEngineView(QWebEngineView):
         super(WebEngineView, self).__init__(parent.W)
         self.setObjectName(name)
 
+        self.web_page = WebEnginePage(self)
+        self.setPage(self.web_page)
+
         hor_policy = hor_policy if hor_policy is not None else self.PREFERRED
         ver_policy = ver_policy if ver_policy is not None else self.PREFERRED
         self.setSizePolicy(hor_policy, ver_policy)
 
         parent.add(self)
 
-    def urlChange(self, slot):
-        try:
-            self.urlChanged.disconnect()
-        except TypeError:
-            pass
-
-        self.urlChanged.connect(slot)
+    def setInterceptor(self, interceptor):
+        self.web_page.interceptor = interceptor
 
 
 class UI(QMainWindow):
@@ -404,6 +417,10 @@ class UI(QMainWindow):
         self.true_btn.click(lambda: action())
         self.false_btn.click(self.restoreUI)
 
+    def goHome(self):
+        self.hideUI()
+        self.task_btns_box.show()
+
 
 class Book:
 
@@ -430,48 +447,57 @@ class Downloads:
         self.books = []
 
         ui.hideUI()
-        ui.close_btn.click(
-            lambda: ui.confirmAction(
-                "Cancelling Download Task!",
-                "Are you sure you would like to cancel the download process?",
-                self.cancelDownloads,
-            )
-        )
         ui.restart_btn.click(
             lambda: ui.confirmAction(
                 "Restarting Download Task!",
                 "Are you sure you would like to restart the download process?",
-                self.restartDownloads,
+                self.restart,
             )
         )
 
         ui.task_label_box.show()
         ui.task_label.setText("Please Search For A Book:")
 
+        ui.web_engine.setInterceptor(self.urlInterceptor)
         ui.web_engine_box.show()
         ui.web_engine.setUrl(QUrl(v.OCEANOFPDF_URL))
-        ui.web_engine.urlChange(self.urlChanged)
 
         ui.status_box.show()
-        ui.status.setText("WAITING FOR USER SEARCH...")
+        ui.status.setText("Wwaiting For User Search...")
 
-    def cancelDownloads(self):
-        pass
-
-    def restartDownloads(self):
+    def restart(self):
         startDownloadBooks()
 
-    def urlChanged(self, url):
+    def urlInterceptor(self, url):
         url = url.toString()
 
         url_path = str(url).replace(v.OCEANOFPDF_URL, "")
-        print(url_path)
 
-        match url_path:
-            case _ if url_path.startswith("?s="):
-                ui.status.setText("WAITING FOR USER SELECTION...")
-            case _ if url_path.startswith("authors/"):
-                print("book Selected")
+        if url_path.startswith("?s="):
+            ui.status.setText("Waiting For User Selection...")
+            return True
+
+        if url_path.startswith("authors/"):
+            epub_available = url_path.split("/")[2].replace("pdf-", "")
+
+            if epub_available.startswith("epub"):
+                ui.status.setText("EPUB Available, Fetching...")
+                self.downloadBook(url)
+                return False
+
+            ui.status.setText(
+                "EPUB NOT AVAILABLE!\nPlease Select A Different Book..."
+            )
+            return False
+
+        return True
+
+    async def downloadBook(self, url):
+        book = Book()
+
+        book.oceanofpdf_url = v.OCEANOFPDF_URL + url
+
+        self.books.append(book)
 
 
 def resource_path(relative_path):
@@ -485,11 +511,28 @@ def resource_path(relative_path):
 
 def setup():
     ui.download_book_btn.click(startDownloadBooks)
+
+    ui.close_btn.click(
+        lambda: ui.confirmAction(
+            "Cancelling Download Task!",
+            "Are you sure you would like to cancel the download process?",
+            close,
+        )
+    )
+
     ui.task_btns_box.show()
 
 
+def close():
+    v.download_worker = None
+    v.process_worker = None
+    v.upload_worker = None
+
+    ui.goHome()
+
+
 def startDownloadBooks():
-    download_worker = Downloads()
+    v.download_worker = Downloads()
 
 
 if __name__ == "__main__":
@@ -497,9 +540,9 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     ui = UI()
 
-    download_worker = None
-    process_worker = None
-    upload_worker = None
+    v.download_worker = None
+    v.process_worker = None
+    v.upload_worker = None
 
     setup()
 
