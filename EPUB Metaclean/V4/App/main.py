@@ -5,6 +5,8 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from PyQt5.QtWebEngineWidgets import *
+from PyQt5.QtNetwork import *
+from time import sleep
 
 
 class V:
@@ -158,7 +160,7 @@ class WebEngineView(QWebEngineView):
         super(WebEngineView, self).__init__(parent.W)
         self.setObjectName(name)
 
-        self.web_page = WebEnginePage(self)
+        self.web_page = WebEnginePage(parent.W)
         self.setPage(self.web_page)
 
         hor_policy = hor_policy if hor_policy is not None else self.PREFERRED
@@ -169,6 +171,22 @@ class WebEngineView(QWebEngineView):
 
     def setInterceptor(self, interceptor):
         self.web_page.interceptor = interceptor
+
+    def loaded(self, slot):
+        try:
+            self.loadFinished.disconnect()
+        except TypeError:
+            pass
+
+        self.loadFinished.connect(slot)
+
+    def setUrl(self, url):
+        url = QUrl(url)
+        super().setUrl(url)
+
+    def createWindow(self, _type):
+        print("Create Window Calls!")
+        return self
 
 
 class UI(QMainWindow):
@@ -444,6 +462,8 @@ class Book:
 
 class Downloads:
     def __init__(self):
+        self.download_in_progress = False
+        self.hidden_web_engine = WebEngineView(ui.base)
         self.books = []
 
         ui.hideUI()
@@ -460,7 +480,7 @@ class Downloads:
 
         ui.web_engine.setInterceptor(self.urlInterceptor)
         ui.web_engine_box.show()
-        ui.web_engine.setUrl(QUrl(v.OCEANOFPDF_URL))
+        ui.web_engine.setUrl(v.OCEANOFPDF_URL)
 
         ui.status_box.show()
         ui.status.setText("Wwaiting For User Search...")
@@ -473,17 +493,27 @@ class Downloads:
 
         url_path = str(url).replace(v.OCEANOFPDF_URL, "")
 
-        if url_path.startswith("?s="):
+        if url_path.startswith("?s=") or url_path.startswith("page/"):
             ui.status.setText("Waiting For User Selection...")
             return True
+
+        if self.download_in_progress:
+            ui.status.setText("Book Is Downloading!\nPlease Wait...")
+            return False
 
         if url_path.startswith("authors/"):
             epub_available = url_path.split("/")[2].replace("pdf-", "")
 
             if epub_available.startswith("epub"):
                 ui.status.setText("EPUB Available, Fetching...")
-                self.downloadBook(url)
-                return False
+
+                book = Book()
+                self.books.append(book)
+                self.books[-1].oceanofpdf_url = url
+                ui.web_engine.loaded(self.openBookPage)
+                # ui.web_engine.setUrl(url)
+
+                return True
 
             ui.status.setText(
                 "EPUB NOT AVAILABLE!\nPlease Select A Different Book..."
@@ -492,12 +522,12 @@ class Downloads:
 
         return True
 
-    async def downloadBook(self, url):
-        book = Book()
+    def openBookPage(self):
+        js_code = "document.querySelector(\"input[src='https://media.oceanofpdf.com/epub-button.jpg']\") !== null;"
+        ui.web_engine.page().runJavaScript(js_code, self.downloadBook)
 
-        book.oceanofpdf_url = v.OCEANOFPDF_URL + url
-
-        self.books.append(book)
+    def downloadBook(self, *args):
+        print(*args)
 
 
 def resource_path(relative_path):
