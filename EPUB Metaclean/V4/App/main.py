@@ -185,7 +185,6 @@ class WebEngineView(QWebEngineView):
         super().setUrl(url)
 
     def createWindow(self, _type):
-        print("Create Window Calls!")
         return self
 
 
@@ -258,33 +257,19 @@ class UI(QMainWindow):
         self.base.setMargins(*self.DEFAULT_MARGIN)
         self.setCentralWidget(self.base.W)
 
-        self.initProgressBar()
         self.initTaskLabel()
+        self.initProgressBar()
         self.initWarnLabel()
         self.initFiller()
         self.initTaskBtns()
         self.initWebEngine()
         self.initNavBtns()
         self.initConfirmBtns()
+        self.initFinishbtn()
         self.initStatus()
 
         self.showMaximized()
         self.show()
-
-    def initProgressBar(self):
-        self.progress_box = Container(self.base, "progress_box", verticle=False)
-        self.progress_box.setMargins(*self.DEFAULT_MARGIN)
-
-        self.progress_label = Label(
-            self.progress_box, "progress_label", "Progress: "
-        )
-        self.progress_bar = ProgressBar(
-            self.progress_box,
-            "progress_bar",
-            hor_policy=self.EXPANDING,
-        )
-
-        self.progress_box.hide()
 
     def initTaskLabel(self):
         self.task_label_box = Container(
@@ -302,6 +287,21 @@ class UI(QMainWindow):
         self.close_btn = PushButton(self.task_label_box, text=" X ", warn=True)
 
         self.task_label_box.hide()
+
+    def initProgressBar(self):
+        self.progress_box = Container(self.base, "progress_box", verticle=False)
+        self.progress_box.setMargins(*self.DEFAULT_MARGIN)
+
+        self.progress_label = Label(
+            self.progress_box, "progress_label", "Progress: "
+        )
+        self.progress_bar = ProgressBar(
+            self.progress_box,
+            "progress_bar",
+            hor_policy=self.EXPANDING,
+        )
+
+        self.progress_box.hide()
 
     def initWarnLabel(self):
         self.warn_label_box = Container(self.base, "warn_label_box")
@@ -384,6 +384,16 @@ class UI(QMainWindow):
 
         self.confirm_box.W.setVisible(False)
 
+    def initFinishbtn(self):
+        self.finish_btn_box = Container(self.base, "finish_btn_box")
+        self.finish_btn_box.setMargins(*self.DEFAULT_MARGIN)
+
+        self.finish_btn = PushButton(
+            self.finish_btn_box, "finish_btn", "Process Downloads"
+        )
+
+        self.finish_btn_box.hide()
+
     def initStatus(self):
         self.status_box = Container(self.base, "status_box", verticle=False)
         self.status_box.setMargins(*self.DEFAULT_MARGIN)
@@ -395,15 +405,19 @@ class UI(QMainWindow):
 
         self.status_box.hide()
 
-    def updateProgressBar(self, value=1, range=None, override=False):
-        if range:
-            self.progress_bar.setRange(0, range)
-            self.progress_bar.setValue(value)
-        else:
-            if override:
-                self.progress_bar.setValue(value)
-            else:
-                self.progress_bar.setValue(self.progress_bar.value() + value)
+    def updateProgressBar(
+        self, value=None, range=None, text=None, override=False
+    ):
+
+        self.progress_label.setText(text) if text is not None else None
+        self.progress_bar.setRange(0, range) if range is not None else None
+
+        if override:
+            self.progress_bar.setValue(value) if value is not None else None
+            return
+
+        if value is not None:
+            self.progress_bar.setValue(self.progress_bar.value() + value)
 
     def hideUI(self):
         self.previous_ui = {
@@ -455,6 +469,7 @@ class Book:
         self.oceanofpdf_url = None
         self.oceanofpdf_has_epub = True
         self.file_name = None
+        self.file_path = None
 
     def __str__(self):
         return f"{self.title} By {self.author}"
@@ -462,8 +477,9 @@ class Book:
 
 class Downloads:
     def __init__(self):
-        self.download_in_progress = False
-        self.hidden_web_engine = WebEngineView(ui.base)
+        self.download_queue = 0
+        self.download_count = 0
+        self.adding_book = False
         self.books = []
 
         ui.hideUI()
@@ -478,12 +494,26 @@ class Downloads:
         ui.task_label_box.show()
         ui.task_label.setText("Please Search For A Book:")
 
+        ui.updateProgressBar(0, 1, "Progress: ", True)
+        ui.finish_btn.click(
+            lambda: ui.confirmAction(
+                "Process Books?",
+                "Are you sure you want to process these books?",
+                self.startProcessing,
+            )
+        )
+
         ui.web_engine.setInterceptor(self.urlInterceptor)
         ui.web_engine_box.show()
         ui.web_engine.setUrl(v.OCEANOFPDF_URL)
 
+        self.hidden_web_engine = WebEngineView(ui.base)
+        self.hidden_web_engine.page().profile().downloadRequested.connect(
+            self.handleDownload
+        )
+
         ui.status_box.show()
-        ui.status.setText("Wwaiting For User Search...")
+        ui.status.setText("Waiting For User Input...")
 
     def restart(self):
         startDownloadBooks()
@@ -493,12 +523,8 @@ class Downloads:
 
         url_path = str(url).replace(v.OCEANOFPDF_URL, "")
 
-        if url_path.startswith("?s=") or url_path.startswith("page/"):
-            ui.status.setText("Waiting For User Selection...")
-            return True
-
-        if self.download_in_progress:
-            ui.status.setText("Book Is Downloading!\nPlease Wait...")
+        if self.adding_book:
+            ui.status.setText("Please Wait...")
             return False
 
         if url_path.startswith("authors/"):
@@ -507,27 +533,73 @@ class Downloads:
             if epub_available.startswith("epub"):
                 ui.status.setText("EPUB Available, Fetching...")
 
+                ui.finish_btn_box.hide()
+
                 book = Book()
                 self.books.append(book)
                 self.books[-1].oceanofpdf_url = url
-                ui.web_engine.loaded(self.openBookPage)
-                # ui.web_engine.setUrl(url)
-
-                return True
+                self.hidden_web_engine.loaded(self.openBookPage)
+                self.hidden_web_engine.setUrl(url)
+                return False
 
             ui.status.setText(
                 "EPUB NOT AVAILABLE!\nPlease Select A Different Book..."
             )
             return False
+        else:
+            ui.status.setText("Waiting For User Input...")
 
         return True
 
     def openBookPage(self):
-        js_code = "document.querySelector(\"input[src='https://media.oceanofpdf.com/epub-button.jpg']\") !== null;"
-        ui.web_engine.page().runJavaScript(js_code, self.downloadBook)
+        ui.status.setText("Adding Book To Download Queue...")
+        self.adding_book = True
 
-    def downloadBook(self, *args):
-        print(*args)
+        query_tag = "input[type='image'][src^='https://media.oceanofpdf.com/epub-button']"
+        js_code = f'document.querySelector("{query_tag}").click();'
+
+        self.hidden_web_engine.page().runJavaScript(js_code)
+
+    def handleDownload(self, download):
+        curr_dir = os.getcwd()
+        file_name = str(download.suggestedFileName()).replace(
+            "/OceanofPDF.com/", ""
+        )
+
+        file_path = os.path.join(curr_dir, file_name)
+
+        download.setDownloadFileName(file_path)
+        download.accept()
+
+        self.download_queue += 1
+        ui.progress_box.show()
+        ui.updateProgressBar(
+            range=self.download_queue,
+            text=f"Downloading {self.download_queue} Files: ",
+        )
+
+        self.books[-1].file_name = file_name
+        self.books[-1].file_path = file_path
+
+        download.finished.connect(self.downloadComplete)
+
+        self.adding_book = False
+        ui.status.setText("Waiting For User Input...")
+
+    def downloadComplete(self):
+        ui.updateProgressBar(1)
+
+        self.download_count += 1
+
+        if self.download_count == self.download_queue:
+            ui.updateProgressBar(
+                text=f"Downloaded {self.download_count} Books: "
+            )
+
+            ui.finish_btn_box.show()
+
+    def startProcessing(self):
+        startProcessBooks(self.books)
 
 
 def resource_path(relative_path):
@@ -563,6 +635,12 @@ def close():
 
 def startDownloadBooks():
     v.download_worker = Downloads()
+
+
+def startProcessBooks(downloaded_books):
+    ui.hide()
+    v.download_worker = None
+    print("Process Books")
 
 
 if __name__ == "__main__":
