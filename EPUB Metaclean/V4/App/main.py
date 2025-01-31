@@ -218,7 +218,7 @@ class UI(QMainWindow):
         super(UI, self).__init__()
 
         self.setWindowTitle("EPUB Metaclean - V4.0")
-        self.setWindowIcon(QIcon(resource_path("icon.ico")))
+        self.setWindowIcon(QIcon(resourcePath("icon.ico")))
         self.setMinimumSize(460, 460)
 
         self.loadStyleSheet()
@@ -244,7 +244,7 @@ class UI(QMainWindow):
         )
 
     def loadStyleSheet(self):
-        with open(resource_path("styles.qss"), "r") as styles:
+        with open(resourcePath("styles.qss"), "r") as styles:
             style_sheet = styles.read()
 
         for var, value in self.STYLE_VARIABLES.items():
@@ -346,7 +346,7 @@ class UI(QMainWindow):
         self.web_engine_box = Container(
             self.base, "web_engine_box", ver_policy=self.EXPANDING
         )
-        self.web_engine_box.setMargins(*self.DEFAULT_MARGIN)
+        self.web_engine_box.setMargins(0)
 
         self.web_engine = WebEngineView(self.web_engine_box, "web_engine")
 
@@ -492,7 +492,7 @@ class Downloads:
         )
 
         ui.task_label_box.show()
-        ui.task_label.setText("Please Search For A Book:")
+        ui.task_label.setText("Downloading New Books")
 
         ui.updateProgressBar(0, 1, "Progress: ", True)
         ui.finish_btn.click(
@@ -536,15 +536,19 @@ class Downloads:
                 ui.finish_btn_box.hide()
 
                 book = Book()
-                self.books.append(book)
-                self.books[-1].oceanofpdf_url = url
-                self.hidden_web_engine.loaded(self.openBookPage)
-                self.hidden_web_engine.setUrl(url)
+                if not checkBookExists(self.books, "oceanofpdf_url", url):
+                    self.books.append(book)
+                    self.books[-1].oceanofpdf_url = url
+                    self.hidden_web_engine.loaded(self.openBookPage)
+                    self.hidden_web_engine.setUrl(url)
+                else:
+                    ui.status.setText(
+                        "Already Downloaded!\nWaiting For User Input..."
+                    )
+
                 return False
 
-            ui.status.setText(
-                "EPUB NOT AVAILABLE!\nPlease Select A Different Book..."
-            )
+            ui.status.setText("EPUB NOT AVAILABLE!\nWaiting For User Input...")
             return False
         else:
             ui.status.setText("Waiting For User Input...")
@@ -602,13 +606,17 @@ class Downloads:
         startProcessBooks(self.books)
 
 
-def resource_path(relative_path):
+def resourcePath(relative_path):
     try:
         base_path = sys._MEIPASS
     except Exception:
         base_path = os.path.abspath(".")
 
     return os.path.join(base_path, relative_path)
+
+
+def checkBookExists(books, target_key, target_val):
+    return any(getattr(book, target_key, False) == target_val for book in books)
 
 
 def setup():
