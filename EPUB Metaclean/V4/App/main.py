@@ -1,6 +1,7 @@
 import sys
 import os
-import asyncio
+import epubfile
+import ebookmeta
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
@@ -101,6 +102,9 @@ class PushButton(QPushButton):
 
         self.clicked.connect(slot)
 
+    def warn(self, warn):
+        self.setProperty("theme", "warn" if warn else None)
+
 
 class Label(QLabel):
     PREFERRED = QSizePolicy.Policy.Preferred
@@ -118,12 +122,16 @@ class Label(QLabel):
         self.setObjectName(name)
         self.setProperty("theme", "warn" if warn else None)
         self.setText(text)
+        self.setWordWrap(True)
 
         hor_policy = hor_policy if hor_policy is not None else self.PREFERRED
         ver_policy = ver_policy if ver_policy is not None else self.PREFERRED
         self.setSizePolicy(hor_policy, ver_policy)
 
         parent.add(self)
+
+    def warn(self, warn):
+        self.setProperty("theme", "warn" if warn else None)
 
 
 class ProgressBar(QProgressBar):
@@ -193,25 +201,20 @@ class UI(QMainWindow):
     EXPANDING = QSizePolicy.Expanding
     MINIMUM = QSizePolicy.Minimum
     STYLE_VARIABLES = {
-        "text_size": 1,
-        "header_size": 1,
+        "text_size": "12px",
+        "btn_text_color": "#000000",
+        "btn_text_alt_color": "#ffffff",
         "primary_color": "#4CBB17",
-        "primary_dark_color": "#2e720e",
-        "secondary_color": "",
-        "secondary_dark_color": "",
-        "button_color": "#ffffff",
-        "button_color_alt": "#ffffff",
-        "border_color": "#ffffff",
-        "border_color_alt": "#ffffff",
+        "primary_dark_color": "#358310",
+        "secondary_color": "#D8D4D5",
+        "secondary_dark_color": "#9b9193",
+        "warn_color": "#D32926",
+        "warn_dark_color": "#941d1b",
         "bg_color": "#323232",
-        "bg_alt_color": "#595959",
-        "hover_color": "#000000",
-        "hover_bgcolor": "#4CBB17",
-        "pressed_bgcolor": "#2e720e",
-        "warn_color": "#D2042D",
-        "hover_warn_color": "#ffffff",
-        "hover_warn_bgcolor": "#D2042D",
-        "pressed_warn_bgcolor": "#7d021b",
+        "bg_alt_color": "#282828",
+        "border": "2px solid #ffffff",
+        "border_alt": "0 solid #ffffff",
+        "border_radius": "10px",
     }
 
     def __init__(self):
@@ -221,26 +224,23 @@ class UI(QMainWindow):
         self.setWindowIcon(QIcon(resourcePath("icon.ico")))
         self.setMinimumSize(460, 460)
 
-        self.loadStyleSheet()
-
         self.initUI()
 
         self.file_watcher = QFileSystemWatcher(["styles.qss"])
         self.file_watcher.fileChanged.connect(self.loadStyleSheet)
 
     def resizeEvent(self, event):
+        super().resizeEvent(event)
         self.updateFontSize()
         self.loadStyleSheet()
-
-        super().resizeEvent(event)
+        self.loadRoundedMask()
 
     def updateFontSize(self):
         screen = QApplication.primaryScreen()
         screen_size = screen.size()
 
-        self.STYLE_VARIABLES["text_size"] = max(14, screen_size.height() // 70)
-        self.STYLE_VARIABLES["header_size"] = max(
-            18, screen_size.height() // 30
+        self.STYLE_VARIABLES["text_size"] = (
+            str(max(14, screen_size.height() // 70)) + "px"
         )
 
     def loadStyleSheet(self):
@@ -252,6 +252,16 @@ class UI(QMainWindow):
 
         self.setStyleSheet(style_sheet)
 
+    def loadRoundedMask(self):
+        radius = int(self.STYLE_VARIABLES["border_radius"].replace("px", ""))
+
+        path = QPainterPath()
+        rect = QRectF(self.web_engine.rect())
+        path.addRoundedRect(rect, radius, radius)
+
+        region = QRegion(path.toFillPolygon().toPolygon())
+        self.web_engine.setMask(region)
+
     def initUI(self):
         self.base = Container(name="base")
         self.base.setMargins(*self.DEFAULT_MARGIN)
@@ -259,9 +269,10 @@ class UI(QMainWindow):
 
         self.initTaskLabel()
         self.initProgressBar()
-        self.initWarnLabel()
-        self.initFiller()
+        self.initNoticeLabel()
         self.initTaskBtns()
+        self.initProcessList()
+        self.initProcessOptions()
         self.initWebEngine()
         self.initNavBtns()
         self.initConfirmBtns()
@@ -295,6 +306,7 @@ class UI(QMainWindow):
         self.progress_label = Label(
             self.progress_box, "progress_label", "Progress: "
         )
+        self.progress_label.setWordWrap(False)
         self.progress_bar = ProgressBar(
             self.progress_box,
             "progress_bar",
@@ -303,26 +315,19 @@ class UI(QMainWindow):
 
         self.progress_box.hide()
 
-    def initWarnLabel(self):
-        self.warn_label_box = Container(self.base, "warn_label_box")
-        self.warn_label_box.setSpacing(40)
-
-        self.warn_label_title = Label(
-            self.warn_label_box, text="Are You Sure?", warn=True
+    def initNoticeLabel(self):
+        self.notice_label_box = Container(
+            self.base, "notice_label_box", ver_policy=self.EXPANDING
         )
-        self.warn_label_title.setAlignment(Qt.AlignCenter)
+        self.notice_label_box.setSpacing(40)
 
-        self.warn_label = Label(self.warn_label_box)
-        self.warn_label.setAlignment(Qt.AlignCenter)
+        self.notice_label_title = Label(self.notice_label_box, text="")
+        self.notice_label_title.setAlignment(Qt.AlignCenter)
 
-        self.warn_label_box.hide()
+        self.notice_label = Label(self.notice_label_box)
+        self.notice_label.setAlignment(Qt.AlignCenter)
 
-    def initFiller(self):
-        self.filler_box = Container(
-            self.base, "filler_box", ver_policy=self.EXPANDING
-        )
-
-        self.filler_box.hide()
+        self.notice_label_box.hide()
 
     def initTaskBtns(self):
         self.task_btns_box = Container(
@@ -342,11 +347,37 @@ class UI(QMainWindow):
 
         self.task_btns_box.hide()
 
+    def initProcessList(self):
+        self.process_list_box = Container(
+            self.base, "process_list_box", ver_policy=self.EXPANDING
+        )
+        self.process_list_box.setMargins(*self.DEFAULT_MARGIN)
+
+        self.process_list_box.hide()
+
+    def initProcessOptions(self):
+        self.process_options_box = Container(
+            self.base, "process_options_box", verticle=False
+        )
+        self.process_options_box.setMargins(*self.DEFAULT_MARGIN)
+
+        self.select_downloads_btn = PushButton(
+            self.process_options_box, text="Select Downloads"
+        )
+        self.select_others_btn = PushButton(
+            self.process_options_box, text="Select Others"
+        )
+        self.clear_selections_btn = PushButton(
+            self.process_options_box, text="Clear All"
+        )
+
+        self.process_options_box.hide()
+
     def initWebEngine(self):
         self.web_engine_box = Container(
             self.base, "web_engine_box", ver_policy=self.EXPANDING
         )
-        self.web_engine_box.setMargins(0)
+        self.web_engine_box.setMargins(*self.DEFAULT_MARGIN)
 
         self.web_engine = WebEngineView(self.web_engine_box, "web_engine")
 
@@ -378,9 +409,7 @@ class UI(QMainWindow):
         self.confirm_box.setMargins(*self.DEFAULT_MARGIN)
 
         self.true_btn = PushButton(self.confirm_box, "true_btn", "YES")
-        self.false_btn = PushButton(
-            self.confirm_box, "false_btn", "NO", warn=True
-        )
+        self.false_btn = PushButton(self.confirm_box, "false_btn", "NO")
 
         self.confirm_box.W.setVisible(False)
 
@@ -435,19 +464,33 @@ class UI(QMainWindow):
         for widget, was_visable in self.previous_ui.items():
             widget.setVisible(was_visable)
 
-    def confirmAction(self, title, text, action):
+    def confirmAction(
+        self,
+        title,
+        text,
+        action_true=None,
+        action_false=None,
+        warn_text=False,
+        warn_true=False,
+        warn_false=False,
+    ):
         self.hideUI()
 
-        self.warn_label_box.show()
-        self.warn_label_title.setText(title)
-        self.warn_label.setText(text)
+        if action_false is None:
+            action_false = self.restoreUI
 
-        self.filler_box.show()
+        self.notice_label_box.show()
+        self.notice_label_title.setText(title)
+        self.notice_label.setText(text)
+        self.notice_label.warn(warn_text)
 
         self.confirm_box.show()
+        self.true_btn.click(lambda: action_true())
+        self.false_btn.click(lambda: action_false())
+        self.true_btn.warn(warn_true)
+        self.false_btn.warn(warn_false)
 
-        self.true_btn.click(lambda: action())
-        self.false_btn.click(self.restoreUI)
+        self.loadStyleSheet()
 
     def goHome(self):
         self.hideUI()
@@ -465,14 +508,70 @@ class Book:
         self.cover_url = None
         self.cover_id = None
         self.goodreads_url = None
-        self.goodreads_id = None
         self.oceanofpdf_url = None
-        self.oceanofpdf_has_epub = True
         self.file_name = None
         self.file_path = None
 
     def __str__(self):
         return f"{self.title} By {self.author}"
+
+    def __eq__(self, other):
+        if isinstance(other, Book):
+            return self.file_path == other.file_path
+        return False
+
+    def getFileData(self, file_path):
+        meta = ebookmeta.get_metadata(file_path)
+        book = epubfile.Epub(file_path)
+
+        self.title = meta.title
+        self.author = meta.author_list_to_string()
+        self.series = meta.series if meta.series else None
+        self.series_index = meta.series_index if meta.series_index else None
+        self.release_data = meta.publish_info if meta.publish_info else None
+
+        cover_id = self.getCoverID(book)
+        self.cover_id = cover_id if cover_id else None
+        self.cover = book.read_file(cover_id) if cover_id else None
+
+        self.file_path = file_path
+        self.file_name = os.path.basename(self.file_path)
+
+    def getCoverID(self, book):
+        cover_id = None
+        false_positives = ["images/cover.png"]
+        possible_tags = [
+            "coverimagestandard",
+            "cover.png",
+            "cover-image",
+            "cover",
+        ]
+
+        try:
+            cover_id = book.get_cover_image()
+        except:
+            pass
+
+        if not cover_id or cover_id in false_positives:
+            for tag in possible_tags:
+                try:
+                    book.get_manifest_item(tag)
+                    cover_id = tag
+                except:
+                    continue
+
+                if cover_id:
+                    break
+
+        if not cover_id:
+            print("Possible Tags:")
+
+            for item in book.get_manifest_items():
+                print(item)
+
+            return None
+
+        return cover_id
 
 
 class Downloads:
@@ -486,13 +585,18 @@ class Downloads:
         ui.restart_btn.click(
             lambda: ui.confirmAction(
                 "Restarting Download Task!",
-                "Are you sure you would like to restart the download process?",
+                "Are you sure you would like to restart the download task?",
                 self.restart,
+                warn_text=True,
+                warn_true=True,
             )
         )
 
         ui.task_label_box.show()
         ui.task_label.setText("Downloading New Books")
+
+        ui.status_box.show()
+        ui.status.setText("Waiting For User Input...")
 
         ui.updateProgressBar(0, 1, "Progress: ", True)
         ui.finish_btn.click(
@@ -505,6 +609,7 @@ class Downloads:
 
         ui.web_engine.setInterceptor(self.urlInterceptor)
         ui.web_engine_box.show()
+
         ui.web_engine.setUrl(v.OCEANOFPDF_URL)
 
         self.hidden_web_engine = WebEngineView(ui.base)
@@ -512,8 +617,7 @@ class Downloads:
             self.handleDownload
         )
 
-        ui.status_box.show()
-        ui.status.setText("Waiting For User Input...")
+        QTimer.singleShot(50, ui.loadRoundedMask)
 
     def restart(self):
         startDownloadBooks()
@@ -603,7 +707,112 @@ class Downloads:
             ui.finish_btn_box.show()
 
     def startProcessing(self):
-        startProcessBooks(self.books)
+        startProcessBooks()
+
+
+class Process:
+    def __init__(self):
+        self.books = []
+
+        ui.restart_btn.click(
+            lambda: ui.confirmAction(
+                "Restarting Processing Task!",
+                "Are you sure you would like to restart the process task?",
+                self.restart,
+                warn_text=True,
+                warn_true=True,
+            )
+        )
+
+        self.hidden_web_engine = WebEngineView(ui.base)
+
+        ui.select_downloads_btn.click(self.getSourceDownloads)
+
+        self.initBookSelection()
+
+    def restart(self):
+        startProcessBooks()
+
+    def checkSource(self):
+        files = [f for f in os.listdir(os.getcwd()) if f.endswith(".epub")]
+
+        if files:
+            return True
+
+        return False
+
+    def initBookSelection(self):
+        ui.hideUI()
+
+        ui.task_label_box.show()
+        ui.task_label.setText(f"Processing {len(self.books)} Books")
+
+        ui.process_list_box.show()
+
+        ui.process_options_box.show()
+        ui.select_downloads_btn.hide()
+        ui.select_downloads_btn.show() if self.checkSource() else None
+
+        ui.status_box.show()
+        ui.status.setText("Waiting For User Input...")
+
+        QTimer.singleShot(50, ui.loadRoundedMask)
+
+    def getSourceDownloads(self):
+        files = [f for f in os.listdir(os.getcwd()) if f.endswith(".epub")]
+
+        if not files:
+            ui.status.setText("No Files In Source Folder!")
+            return
+
+        for file in files:
+            book = Book()
+            book.getFileData(file)
+            if book not in self.books:
+                self.books.append(book)
+
+        self.confirmSourceDownloads(0)
+
+    def confirmSourceDownloads(self, index):
+        ui.status.setText("Waiting For User Input...")
+
+        if index == len(self.books):
+            self.initBookSelection()
+            return
+
+        base_text = (
+            "Would you like to process this book?\n"
+            + self.books[index].file_name
+        )
+        if self.books[index].cover_id is None:
+            base_text = (
+                base_text
+                + "\n\nWARNING: Cannot update cover image due to file error!"
+            )
+
+        ui.confirmAction(
+            "Process This Book?",
+            base_text,
+            lambda: self.confirmSourceDownloads(index + 1),
+            lambda: self.removeBook(index),
+        )
+
+    def removeBook(self, index, delete=None):
+        if delete is None:
+            ui.confirmAction(
+                "Delete Source File?",
+                "Would you like to delete the source file?\n"
+                + self.books[index].file_name,
+                lambda: self.removeBook(index, True),
+                lambda: self.removeBook(index, False),
+            )
+            return
+
+        if delete:
+            os.remove(self.books[index].file_path)
+
+        self.books.pop(index)
+        self.confirmSourceDownloads(index)
 
 
 def resourcePath(relative_path):
@@ -621,12 +830,16 @@ def checkBookExists(books, target_key, target_val):
 
 def setup():
     ui.download_book_btn.click(startDownloadBooks)
+    ui.process_books_btn.click(startProcessBooks)
+    ui.upload_books_btn.click(startUploadBooks)
 
     ui.close_btn.click(
         lambda: ui.confirmAction(
             "Cancelling Download Task!",
             "Are you sure you would like to cancel the download process?",
             close,
+            warn_text=True,
+            warn_true=True,
         )
     )
 
@@ -645,10 +858,13 @@ def startDownloadBooks():
     v.download_worker = Downloads()
 
 
-def startProcessBooks(downloaded_books):
-    ui.hide()
+def startProcessBooks():
     v.download_worker = None
-    print("Process Books")
+    v.process_worker = Process()
+
+
+def startUploadBooks():
+    pass
 
 
 if __name__ == "__main__":

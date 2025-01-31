@@ -1,54 +1,47 @@
 QWidget {
     color: {primary_color};
     background-color: {bg_color};
-    border-width: 0;
-    border-radius: 10;
-    font-size: {text_size}px;
+    border: {border_alt};
+    border-radius: {border_radius};
+    font-size: {text_size};
     
 }
 
 QFrame {
-    border: 2px solid {border_color};
+    border: {border_alt};
 }
 
-QLabel {
-    border-width: 0;
+QLabel, #base, #nav_btns_box > QFrame {
+    border: {border_alt};
 }
 
 QLabel[theme="warn"] {
-    color: {warn_color}
+    color: {warn_color};
 }
 
 QPushButton {
-    background-color: {button_color};
-}
-
-#base {
-    border: 0;
-}
-
-#nav_btns_box > QFrame {
-    border-width: 0;
-}
-
-QWebEnginePage {
-    border-radius: 10px;
+    background-color: {secondary_color};
+    color: {btn_text_color}
 }
 
 QPushButton:hover {
-    background-color: {hover_bgcolor};
-    color: {hover_color};
+    background-color: {primary_color};
+    color: {btn_text_alt_color};
 }
 
 QPushButton:pressed {
-    background-color: {pressed_bgcolor};
+    background-color: {primary_dark_color};
+}
+
+QPushButton[theme="warn"] {
+    color: {warn_color};
 }
 
 QPushButton[theme="warn"]:hover {
-    background-color: {hover_warn_bgcolor};
-    color: {hover_warn_color}
+    background-color: {warn_color};
+    color: {btn_text_alt_color};
 }
 
 QPushButton[theme="warn"]:pressed {
-    background-color: {pressed_warn_bgcolor};
+    background-color: {warn_dark_color};
 }
