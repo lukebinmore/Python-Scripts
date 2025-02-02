@@ -1,17 +1,22 @@
 import sys
 import os
+import re
 import epubfile
 import ebookmeta
+import requests
+from bs4 import BeautifulSoup
+from functools import partial
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from PyQt5.QtWebEngineWidgets import *
 from PyQt5.QtNetwork import *
-from time import sleep
 
 
 class V:
     OCEANOFPDF_URL = "https://oceanofpdf.com/"
+    STRING_TO_REMOVE = "OceanofPDF.com"
+    GOODREADS_URL = "https://www.goodreads.com/"
 
     download_worker = None
     process_worker = None
@@ -63,6 +68,68 @@ class Container:
         bottom = bottom if bottom is not None else curr_bottom
 
         self.L.setContentsMargins(left, top, right, bottom)
+
+    def hide(self):
+        self.W.setVisible(False)
+
+    def show(self):
+        self.W.setVisible(True)
+
+    def deleteChildren(self):
+        for child in self.W.findChildren(QWidget):
+            child.setParent(None)
+            child.deleteLater()
+
+    def deleteSelf(self):
+        if self.W is not None:
+            self.W.setParent(None)
+            self.W.deleteLater()
+
+
+class ScrollArea:
+    def __init__(
+        self,
+        parent=None,
+        name=None,
+        verticle=True,
+        hor_policy=None,
+        ver_policy=None,
+    ):
+        self.W = QScrollArea(parent.W) if parent else QScrollArea()
+        self.W.setObjectName(name)
+        self.W.setWidgetResizable(True)
+
+        self.container = Container(
+            None,
+            name + "_area",
+            verticle=verticle,
+            hor_policy=hor_policy,
+            ver_policy=ver_policy,
+        )
+
+        self.container.setMargins(0)
+        self.W.setWidget(self.container.W)
+
+        if parent is not None:
+            parent.add(self.W)
+
+    def add(self, widget, *args, **kwargs):
+        self.container.add(widget, *args, **kwargs)
+
+    def setSpacing(self, spacing=0):
+        self.container.L.setSpacing(spacing)
+
+    def setMargins(self, left=None, top=None, right=None, bottom=None):
+        curr_left, curr_top, curr_right, curr_bottom = (
+            self.W.getContentsMargins()
+        )
+
+        left = left if left is not None else curr_left
+        top = top if top is not None else curr_top
+        right = right if right is not None else curr_right
+        bottom = bottom if bottom is not None else curr_bottom
+
+        self.W.setContentsMargins(left, top, right, bottom)
 
     def hide(self):
         self.W.setVisible(False)
@@ -211,7 +278,7 @@ class UI(QMainWindow):
         "warn_color": "#D32926",
         "warn_dark_color": "#941d1b",
         "bg_color": "#323232",
-        "bg_alt_color": "#282828",
+        "bg_alt_color": "#6f6f6f",
         "border": "2px solid #ffffff",
         "border_alt": "0 solid #ffffff",
         "border_radius": "10px",
@@ -234,6 +301,7 @@ class UI(QMainWindow):
         self.updateFontSize()
         self.loadStyleSheet()
         self.loadRoundedMask()
+        self.updateImageSize()
 
     def updateFontSize(self):
         screen = QApplication.primaryScreen()
@@ -242,6 +310,27 @@ class UI(QMainWindow):
         self.STYLE_VARIABLES["text_size"] = (
             str(max(14, screen_size.height() // 70)) + "px"
         )
+
+    def updateImageSize(self):
+        if self.notice_label_image.isVisible() and hasattr(
+            self, "notice_label_image_original"
+        ):
+            width, height = self.notice_label_image.width(), int(
+                self.width() / (1.6 / 6)
+            )
+
+            if height > self.notice_label_image.height():
+                height = self.notice_label_image.height()
+                width = int(height * 1.6 / 1)
+
+            print(width)
+            print(height)
+
+            self.notice_label_image.setPixmap(
+                self.notice_label_image_original.scaled(
+                    width, height, Qt.KeepAspectRatio, Qt.SmoothTransformation
+                )
+            )
 
     def loadStyleSheet(self):
         with open(resourcePath("styles.qss"), "r") as styles:
@@ -269,6 +358,7 @@ class UI(QMainWindow):
 
         self.initTaskLabel()
         self.initProgressBar()
+        self.initCurrentFileLabel()
         self.initNoticeLabel()
         self.initTaskBtns()
         self.initProcessList()
@@ -276,7 +366,7 @@ class UI(QMainWindow):
         self.initWebEngine()
         self.initNavBtns()
         self.initConfirmBtns()
-        self.initFinishbtn()
+        self.initContinuehbtn()
         self.initStatus()
 
         self.showMaximized()
@@ -315,6 +405,13 @@ class UI(QMainWindow):
 
         self.progress_box.hide()
 
+    def initCurrentFileLabel(self):
+        self.current_file_box = Container(self.base, "current_file_box")
+        self.current_file_box.setMargins(*self.DEFAULT_MARGIN)
+
+        self.current_file_label = Label(self.current_file_box)
+        self.current_file_box.hide()
+
     def initNoticeLabel(self):
         self.notice_label_box = Container(
             self.base, "notice_label_box", ver_policy=self.EXPANDING
@@ -323,6 +420,12 @@ class UI(QMainWindow):
 
         self.notice_label_title = Label(self.notice_label_box, text="")
         self.notice_label_title.setAlignment(Qt.AlignCenter)
+
+        self.notice_label_image = Label(
+            self.notice_label_box, ver_policy=self.EXPANDING
+        )
+        self.notice_label_image.setScaledContents(True)
+        self.notice_label_image.hide()
 
         self.notice_label = Label(self.notice_label_box)
         self.notice_label.setAlignment(Qt.AlignCenter)
@@ -348,10 +451,12 @@ class UI(QMainWindow):
         self.task_btns_box.hide()
 
     def initProcessList(self):
-        self.process_list_box = Container(
+        self.process_list_box = ScrollArea(
             self.base, "process_list_box", ver_policy=self.EXPANDING
         )
+
         self.process_list_box.setMargins(*self.DEFAULT_MARGIN)
+        self.process_list_box.setSpacing(5)
 
         self.process_list_box.hide()
 
@@ -384,23 +489,13 @@ class UI(QMainWindow):
         self.web_engine_box.hide()
 
     def initNavBtns(self):
-        self.nav_btns_box = Container(self.base, "nav_btns_box")
+        self.nav_btns_box = Container(self.base, "nav_btns_box", verticle=False)
         self.nav_btns_box.setMargins(*self.DEFAULT_MARGIN)
 
-        self.nav_btns_top = Container(
-            self.nav_btns_box, "nav_btns_top", verticle=False
-        )
-        self.prev_btn = PushButton(self.nav_btns_top, "prev_btn", "PREV")
-        self.select_btn = PushButton(self.nav_btns_top, "select_btn", "SELECT")
-        self.next_btn = PushButton(self.nav_btns_top, "next_buton", "NEXT")
-
-        self.nav_btns_bottom = Container(self.nav_btns_box, verticle=False)
-        self.manual_btn = PushButton(
-            self.nav_btns_bottom, "manual_btn", "Manual"
-        )
-        self.cancel_btn = PushButton(
-            self.nav_btns_bottom, "cancel_btn", "Cancel", warn=True
-        )
+        self.back_btn = PushButton(self.nav_btns_box, text="Go Back")
+        self.back_btn.click(self.web_engine.back)
+        self.select_btn = PushButton(self.nav_btns_box, text="Select")
+        self.skip_btn = PushButton(self.nav_btns_box, text="Skip", warn=True)
 
         self.nav_btns_box.hide()
 
@@ -413,15 +508,13 @@ class UI(QMainWindow):
 
         self.confirm_box.W.setVisible(False)
 
-    def initFinishbtn(self):
-        self.finish_btn_box = Container(self.base, "finish_btn_box")
-        self.finish_btn_box.setMargins(*self.DEFAULT_MARGIN)
+    def initContinuehbtn(self):
+        self.continue_btn_box = Container(self.base, "continue_btn_box")
+        self.continue_btn_box.setMargins(*self.DEFAULT_MARGIN)
 
-        self.finish_btn = PushButton(
-            self.finish_btn_box, "finish_btn", "Process Downloads"
-        )
+        self.continue_btn = PushButton(self.continue_btn_box, "continue_btn")
 
-        self.finish_btn_box.hide()
+        self.continue_btn_box.hide()
 
     def initStatus(self):
         self.status_box = Container(self.base, "status_box", verticle=False)
@@ -473,14 +566,28 @@ class UI(QMainWindow):
         warn_text=False,
         warn_true=False,
         warn_false=False,
+        image=None,
     ):
         self.hideUI()
+
+        if action_true is None:
+            action_true = self.restoreUI
 
         if action_false is None:
             action_false = self.restoreUI
 
         self.notice_label_box.show()
         self.notice_label_title.setText(title)
+
+        self.notice_label_image.hide()
+        if image is not None:
+            byte_array = QByteArray(image)
+            pixmap = QPixmap()
+            pixmap.loadFromData(byte_array)
+            self.notice_label_image_original = pixmap
+            self.notice_label_image.show()
+            self.updateImageSize()
+
         self.notice_label.setText(text)
         self.notice_label.warn(warn_text)
 
@@ -498,6 +605,9 @@ class UI(QMainWindow):
 
 
 class Book:
+    DEFAULT_MARGIN = 3, 3, 3, 3
+    EXPANDING = QSizePolicy.Expanding
+    MINIMUM = QSizePolicy.Minimum
 
     def __init__(self):
         self.title = None
@@ -507,7 +617,6 @@ class Book:
         self.cover = None
         self.cover_url = None
         self.cover_id = None
-        self.goodreads_url = None
         self.oceanofpdf_url = None
         self.file_name = None
         self.file_path = None
@@ -520,15 +629,80 @@ class Book:
             return self.file_path == other.file_path
         return False
 
+    def initListItem(self, list, action=None):
+        self.book_list_item = Container(
+            ui.process_list_box.container,
+            "book_list_item",
+            verticle=False,
+            ver_policy=self.MINIMUM,
+        )
+        self.book_list_item.setMargins(*self.DEFAULT_MARGIN)
+
+        book_details = []
+
+        if self.title is not None:
+            book_details.append(f"Title: {self.title}\n")
+
+            if self.author is not None:
+                book_details.append(f"Author: {self.title}\n")
+
+            if self.series is not None:
+                book_details.append(f"Series: {self.series}\n")
+
+            if self.series_index is not None:
+                book_details.append(f"Book: #{self.series_index}")
+        else:
+            book_details.append(f"File Name: {self.file_name}")
+
+        book_details = "".join(book_details)
+
+        self.list_item_text = Label(
+            self.book_list_item, text=book_details, hor_policy=self.EXPANDING
+        )
+
+        self.list_item_btn = PushButton(
+            self.book_list_item, text=" 🗑 ", warn=True
+        )
+
+        self.list_item_btn.click(
+            lambda: self.deleteBook(list, action=lambda: action())
+        )
+
+    def deleteBook(self, list, delete=None, action=None):
+        if delete is None:
+            ui.confirmAction(
+                "Delete Source File?",
+                "Would you like to delete the source file?\n" + self.file_name,
+                lambda: self.deleteBook(list, True, action=action),
+                lambda: self.deleteBook(list, False, action=action),
+                warn_text=True,
+                warn_true=True,
+            )
+            return
+
+        if delete:
+            try:
+                os.remove(self.file_name)
+            except FileNotFoundError:
+                pass
+
+        if hasattr(self, "book_list_item"):
+            self.book_list_item.deleteSelf()
+
+        if self in list:
+            list.remove(self)
+
+        if action is not None:
+            action()
+
     def getFileData(self, file_path):
         meta = ebookmeta.get_metadata(file_path)
         book = epubfile.Epub(file_path)
 
-        self.title = meta.title
+        self.title = meta.title.split("(")[0]
         self.author = meta.author_list_to_string()
         self.series = meta.series if meta.series else None
         self.series_index = meta.series_index if meta.series_index else None
-        self.release_data = meta.publish_info if meta.publish_info else None
 
         cover_id = self.getCoverID(book)
         self.cover_id = cover_id if cover_id else None
@@ -573,6 +747,19 @@ class Book:
 
         return cover_id
 
+    def cleanPages(self):
+        book = epubfile.Epub(self.file_path)
+
+        for page in book.get_texts():
+            soup = book.read_file(page)
+            soup = re.sub(v.STRING_TO_REMOVE, "", soup, flags=re.IGNORECASE)
+            book.write_file(page, soup)
+
+        book.save(self.file_path)
+
+    def saveBook(self):
+        pass
+
 
 class Downloads:
     def __init__(self):
@@ -592,6 +779,16 @@ class Downloads:
             )
         )
 
+        ui.close_btn.click(
+            lambda: ui.confirmAction(
+                "Cancelling Download Task!",
+                "Are you sure you would like to cancel the download process?",
+                self.close,
+                warn_text=True,
+                warn_true=True,
+            )
+        )
+
         ui.task_label_box.show()
         ui.task_label.setText("Downloading New Books")
 
@@ -599,11 +796,12 @@ class Downloads:
         ui.status.setText("Waiting For User Input...")
 
         ui.updateProgressBar(0, 1, "Progress: ", True)
-        ui.finish_btn.click(
+        ui.continue_btn.setText("Process Downloads")
+        ui.continue_btn.click(
             lambda: ui.confirmAction(
                 "Process Books?",
                 "Are you sure you want to process these books?",
-                self.startProcessing,
+                lambda: startProcessBooks(self.books),
             )
         )
 
@@ -613,6 +811,7 @@ class Downloads:
         ui.web_engine.setUrl(v.OCEANOFPDF_URL)
 
         self.hidden_web_engine = WebEngineView(ui.base)
+        self.hidden_web_engine.hide()
         self.hidden_web_engine.page().profile().downloadRequested.connect(
             self.handleDownload
         )
@@ -620,7 +819,12 @@ class Downloads:
         QTimer.singleShot(50, ui.loadRoundedMask)
 
     def restart(self):
+        self.hidden_web_engine.close()
         startDownloadBooks()
+
+    def close(self):
+        self.hidden_web_engine.close()
+        close()
 
     def urlInterceptor(self, url):
         url = url.toString()
@@ -637,7 +841,7 @@ class Downloads:
             if epub_available.startswith("epub"):
                 ui.status.setText("EPUB Available, Fetching...")
 
-                ui.finish_btn_box.hide()
+                ui.continue_btn_box.hide()
 
                 book = Book()
                 if not checkBookExists(self.books, "oceanofpdf_url", url):
@@ -662,6 +866,7 @@ class Downloads:
     def openBookPage(self):
         ui.status.setText("Adding Book To Download Queue...")
         self.adding_book = True
+        ui.continue_btn_box.hide()
 
         query_tag = "input[type='image'][src^='https://media.oceanofpdf.com/epub-button']"
         js_code = f'document.querySelector("{query_tag}").click();'
@@ -704,15 +909,15 @@ class Downloads:
                 text=f"Downloaded {self.download_count} Books: "
             )
 
-            ui.finish_btn_box.show()
-
-    def startProcessing(self):
-        startProcessBooks()
+            ui.continue_btn_box.show()
 
 
 class Process:
-    def __init__(self):
+    def __init__(self, books):
         self.books = []
+
+        if not books == False:
+            self.books = books
 
         ui.restart_btn.click(
             lambda: ui.confirmAction(
@@ -724,14 +929,40 @@ class Process:
             )
         )
 
-        self.hidden_web_engine = WebEngineView(ui.base)
+        ui.close_btn.click(
+            lambda: ui.confirmAction(
+                "Cancelling Download Task!",
+                "Are you sure you would like to cancel the download process?",
+                self.close,
+                warn_text=True,
+                warn_true=True,
+            )
+        )
 
-        ui.select_downloads_btn.click(self.getSourceDownloads)
+        ui.select_downloads_btn.click(self.getSourceFiles)
+        ui.select_others_btn.click(self.getUserFiles)
+        ui.clear_selections_btn.click(
+            lambda: ui.confirmAction(
+                "Clear All Files",
+                "Are you sure you would like to clear all files from the list?\nNOTE: The source files will NOT be deleted!",
+                self.clearAllFiles,
+                warn_text=True,
+                warn_true=True,
+            )
+        )
+
+        ui.continue_btn.click(self.cleanPages)
+        ui.continue_btn.setText("Process Books")
 
         self.initBookSelection()
 
     def restart(self):
+        ui.process_list_box.container.deleteChildren()
         startProcessBooks()
+
+    def close(self):
+        ui.process_list_box.container.deleteChildren()
+        close()
 
     def checkSource(self):
         files = [f for f in os.listdir(os.getcwd()) if f.endswith(".epub")]
@@ -747,18 +978,38 @@ class Process:
         ui.task_label_box.show()
         ui.task_label.setText(f"Processing {len(self.books)} Books")
 
+        ui.process_list_box.container.deleteChildren()
         ui.process_list_box.show()
+
+        for book in self.books:
+            book.initListItem(
+                self.books, action=lambda: self.initBookSelection()
+            )
 
         ui.process_options_box.show()
         ui.select_downloads_btn.hide()
         ui.select_downloads_btn.show() if self.checkSource() else None
 
+        ui.clear_selections_btn.hide()
+        ui.continue_btn_box.hide()
+        if len(self.books) > 0:
+
+            ui.clear_selections_btn.show()
+            ui.continue_btn_box.show()
+
         ui.status_box.show()
         ui.status.setText("Waiting For User Input...")
 
-        QTimer.singleShot(50, ui.loadRoundedMask)
+    def getSourceFiles(self):
+        ui.hideUI()
 
-    def getSourceDownloads(self):
+        ui.notice_label_box.show()
+        ui.notice_label_title.setText("Fetching Downloaded Books")
+        ui.notice_label.warn(False)
+        ui.notice_label.setText(
+            "Please wait, fetching books downloaded with EPUB Metaclean..."
+        )
+
         files = [f for f in os.listdir(os.getcwd()) if f.endswith(".epub")]
 
         if not files:
@@ -771,9 +1022,9 @@ class Process:
             if book not in self.books:
                 self.books.append(book)
 
-        self.confirmSourceDownloads(0)
+        self.confirmSourceFiles(0)
 
-    def confirmSourceDownloads(self, index):
+    def confirmSourceFiles(self, index):
         ui.status.setText("Waiting For User Input...")
 
         if index == len(self.books):
@@ -793,26 +1044,171 @@ class Process:
         ui.confirmAction(
             "Process This Book?",
             base_text,
-            lambda: self.confirmSourceDownloads(index + 1),
-            lambda: self.removeBook(index),
+            lambda: self.confirmSourceFiles(index + 1),
+            lambda: self.books[index].deleteBook(
+                self.books, action=lambda: self.confirmSourceFiles(index)
+            ),
         )
 
-    def removeBook(self, index, delete=None):
-        if delete is None:
-            ui.confirmAction(
-                "Delete Source File?",
-                "Would you like to delete the source file?\n"
-                + self.books[index].file_name,
-                lambda: self.removeBook(index, True),
-                lambda: self.removeBook(index, False),
+    def getUserFiles(self):
+        files, _ = QFileDialog.getOpenFileNames(
+            None, "Select Files", "", "EPUB FIles (*.epub)"
+        )
+
+        if files:
+            ui.status.setText("Processing Selected Files...")
+
+        for file in files:
+            book = Book()
+            book.getFileData(file)
+            if book not in self.books:
+                self.books.append(book)
+
+        self.initBookSelection()
+
+    def clearAllFiles(self):
+        self.books = []
+        self.initBookSelection()
+
+    def cleanPages(self):
+        ui.hideUI()
+        ui.process_list_box.container.deleteChildren()
+
+        ui.task_label_box.show()
+        ui.progress_box.show()
+        ui.updateProgressBar(
+            0, len(self.books), f"Cleaning {len(self.books)} Books: ", True
+        )
+
+        ui.notice_label_box.show()
+        ui.notice_label_title.setText("Clearning Book Pages...")
+
+        ui.status_box.show()
+        ui.status.setText("Cleaning Books...")
+
+        for book in self.books:
+            ui.notice_label.setText(f"Cleaning {book.title}...")
+            book.cleanPages()
+            ui.updateProgressBar(1)
+
+        ui.progress_box.hide()
+        ui.notice_label_box.hide()
+        ui.current_file_box.show()
+        ui.web_engine.setInterceptor(self.urlInterceptor)
+        ui.web_engine_box.show()
+
+        QTimer.singleShot(50, ui.loadRoundedMask)
+
+        self.searchBook(0)
+
+    def urlInterceptor(self, url):
+        url = str(url.toString())
+
+        if url.startswith(v.GOODREADS_URL):
+            url_path = url.replace(v.GOODREADS_URL, "")
+
+            if url_path.startswith("book/show/"):
+                ui.web_engine.loaded(ui.nav_btns_box.show)
+            else:
+                try:
+                    ui.web_engine.loadFinished.disconnect(ui.nav_btns_box.show)
+                except TypeError:
+                    pass
+
+                ui.nav_btns_box.hide()
+
+        return True
+
+    def searchBook(self, index):
+        ui.status.setText("Waiting For User Input...")
+
+        ui.current_file_label.setText(
+            f"Searching For: {self.books[index].title}"
+        )
+
+        replacements = [
+            f"_{v.STRING_TO_REMOVE}_",
+            "-",
+            "_",
+            "(",
+            ")",
+            ".epub",
+            " ",
+        ]
+
+        query = self.books[index].title
+
+        for part in replacements:
+            query = query.replace(part, "+")
+
+        ui.web_engine.setUrl(f"{v.GOODREADS_URL}search?q={query}")
+
+        ui.select_btn.click(
+            lambda: ui.web_engine.page().toHtml(
+                partial(self.selectBook, index=index)
             )
+        )
+        ui.skip_btn.click(
+            lambda: ui.confirmAction(
+                "Skip File",
+                "Are you sure you want to skip searching for this books details?",
+                action_true=lambda: self.searchBook(index + 1),
+                warn_text=True,
+                warn_true=True,
+            )
+        )
+
+    def selectBook(self, html, index):
+        ui.status.setText("Pulling Book Data From Page...")
+        ui.progress_box.show()
+        ui.updateProgressBar(0, 7, "Fetching Data: ", True)
+
+        book = self.books[index]
+        soup = BeautifulSoup(html, "html.parser")
+
+        book.title = soup.select(".Text__title1")[0].text.strip()
+        ui.updateProgressBar(1)
+
+        book.author = soup.select(".ContributorLink__name")[0].text.strip()
+        ui.updateProgressBar(1)
+
+        series_link = soup.select_one(
+            'a[href^="https://www.goodreads.com/series"]'
+        )
+        ui.updateProgressBar(1)
+
+        if series_link:
+            book.series = series_link.contents[0].strip()
+            book.series_index = series_link.contents[1].strip()
+
+        ui.updateProgressBar(1)
+
+        if book.cover_id is None:
+            self.books[index] = book
+            self.books[index].save()
+            self.searchBook(index + 1)
             return
 
-        if delete:
-            os.remove(self.books[index].file_path)
+        book.cover_url = soup.select(".BookCover__image")[0].select("img")[0][
+            "src"
+        ]
+        ui.updateProgressBar(1)
 
-        self.books.pop(index)
-        self.confirmSourceDownloads(index)
+        book.cover = requests.get(book.cover_url, stream=True).content
+        ui.updateProgressBar(1)
+
+        self.books[index] = book
+        ui.updateProgressBar(1)
+
+        self.selectCover(index, self.books[index].cover)
+
+    def selectCover(self, index, image, accepted=None):
+        ui.confirmAction(
+            "Check Cover Image",
+            "Are you happy with this cover image?\n"
+            + "NOTE: You can search Google Images for a different cover image if you select no.",
+            image=image,
+        )
 
 
 def resourcePath(relative_path):
@@ -833,16 +1229,6 @@ def setup():
     ui.process_books_btn.click(startProcessBooks)
     ui.upload_books_btn.click(startUploadBooks)
 
-    ui.close_btn.click(
-        lambda: ui.confirmAction(
-            "Cancelling Download Task!",
-            "Are you sure you would like to cancel the download process?",
-            close,
-            warn_text=True,
-            warn_true=True,
-        )
-    )
-
     ui.task_btns_box.show()
 
 
@@ -858,9 +1244,9 @@ def startDownloadBooks():
     v.download_worker = Downloads()
 
 
-def startProcessBooks():
+def startProcessBooks(books=False):
     v.download_worker = None
-    v.process_worker = Process()
+    v.process_worker = Process(books)
 
 
 def startUploadBooks():

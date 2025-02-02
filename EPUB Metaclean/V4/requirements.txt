@@ -3,3 +3,5 @@ PyQtWebEngine
 Pyinstaller
 epubfile
 ebookmeta
+beautifulsoup4
+requests

@@ -45,3 +45,11 @@ QPushButton[theme="warn"]:hover {
 QPushButton[theme="warn"]:pressed {
     background-color: {warn_dark_color};
 }
+
+#book_list_item, #book_list_item > QFrame {
+    background-color: {bg_alt_color};
+}
+
+#book_list_item:hover, #book_list_item > QFrame:hover {
+    background-color: {bg_color};
+}
