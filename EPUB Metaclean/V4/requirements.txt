@@ -5,3 +5,4 @@ epubfile
 ebookmeta
 beautifulsoup4
 requests
+pillow

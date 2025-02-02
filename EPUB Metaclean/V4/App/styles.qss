@@ -1,4 +1,4 @@
-QWidget {
+QWidget, QMenu {
     color: {primary_color};
     background-color: {bg_color};
     border: {border_alt};

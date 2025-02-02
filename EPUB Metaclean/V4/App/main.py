@@ -4,6 +4,8 @@ import re
 import epubfile
 import ebookmeta
 import requests
+from io import BytesIO
+from PIL import Image
 from bs4 import BeautifulSoup
 from functools import partial
 from PyQt5.QtWidgets import *
@@ -17,6 +19,7 @@ class V:
     OCEANOFPDF_URL = "https://oceanofpdf.com/"
     STRING_TO_REMOVE = "OceanofPDF.com"
     GOODREADS_URL = "https://www.goodreads.com/"
+    IMAGE_PROVIDER_URL = "https://www.google.com/search?tbm=isch&q="
 
     download_worker = None
     process_worker = None
@@ -220,6 +223,8 @@ class WebEnginePage(QWebEnginePage):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.interceptor = None
+        self.context_menu_enabled = True
+        self.image_select_callback = None
 
     def acceptNavigationRequest(self, url, _type, isMainFrame):
         if self.interceptor:
@@ -235,6 +240,9 @@ class WebEngineView(QWebEngineView):
         super(WebEngineView, self).__init__(parent.W)
         self.setObjectName(name)
 
+        self.context_menu_enabled = False
+        self.image_select_callback = None
+
         self.web_page = WebEnginePage(parent.W)
         self.setPage(self.web_page)
 
@@ -247,20 +255,94 @@ class WebEngineView(QWebEngineView):
     def setInterceptor(self, interceptor):
         self.web_page.interceptor = interceptor
 
+    def contextMenuEvent(self, event):
+        self.menu = QMenu()
+        if self.context_menu_enabled:
+            hit_test = self.web_page.contextMenuData()
+
+            if hit_test.mediaType() == QWebEngineContextMenuData.MediaTypeImage:
+                image_url = hit_test.mediaUrl().toString()
+
+                if image_url.lower().endswith((".jpg", ".jpeg", ".png")):
+                    select_action = QAction("Select", self.menu)
+
+                    def handleImage():
+                        clipboard = QApplication.clipboard()
+                        clipboard.clear()
+
+                        self.triggerPageAction(
+                            QWebEnginePage.CopyImageToClipboard
+                        )
+
+                        QTimer.singleShot(100, processImage)
+
+                    def waitForClipboardContent(attempts=10):
+                        clipboard = QApplication.clipboard()
+                        qimage = clipboard.image()
+
+                        if not qimage.isNull():
+                            processImage()
+                        elif attempts > 0:
+                            QTimer.singleShot(
+                                50,
+                                lambda: waitForClipboardContent(attempts - 1),
+                            )
+
+                    def processImage():
+                        clipboard = QApplication.clipboard()
+                        qimage = clipboard.image()
+                        buffer = QBuffer()
+                        buffer.open(QIODevice.WriteOnly)
+                        qimage.save(buffer, "JPEG")
+                        buffer.close()
+                        image = buffer.data()
+
+                        if not image.isNull() and self.image_select_callback:
+                            self.image_select_callback(image)
+
+                    select_action.triggered.connect(handleImage)
+                    self.menu.addAction(select_action)
+
+        self.menu.popup(event.globalPos())
+
+    def setContextCall(self, callback=None):
+        self.context_menu_enabled = True if callback is not None else False
+        self.image_select_callback = callback
+
     def loaded(self, slot):
+        def wrapper(wrapped_slot):
+            try:
+                self.loadFinished.disconnect()
+            except TypeError:
+                pass
+
+            wrapped_slot()
+
         try:
             self.loadFinished.disconnect()
         except TypeError:
             pass
 
-        self.loadFinished.connect(slot)
+        self.loadFinished.connect(lambda: wrapper(slot))
 
     def setUrl(self, url):
         url = QUrl(url)
         super().setUrl(url)
+        self.loaded(self.clearHistory)
+
+    def clearHistory(self):
+        self.history().clear()
 
     def createWindow(self, _type):
         return self
+
+    def downloadReq(self, slot):
+        try:
+            self.page().profile().downloadRequested.disconnect()
+        except TypeError:
+            pass
+
+        self.page().profile().downloadRequested.connect(slot)
 
 
 class UI(QMainWindow):
@@ -300,8 +382,8 @@ class UI(QMainWindow):
         super().resizeEvent(event)
         self.updateFontSize()
         self.loadStyleSheet()
-        self.loadRoundedMask()
         self.updateImageSize()
+        self.loadRoundedMask()
 
     def updateFontSize(self):
         screen = QApplication.primaryScreen()
@@ -315,22 +397,11 @@ class UI(QMainWindow):
         if self.notice_label_image.isVisible() and hasattr(
             self, "notice_label_image_original"
         ):
-            width, height = self.notice_label_image.width(), int(
-                self.width() / (1.6 / 6)
+            image_scaled = self.notice_label_image_original.scaled(
+                self.notice_label_image.size(), Qt.KeepAspectRatio
             )
 
-            if height > self.notice_label_image.height():
-                height = self.notice_label_image.height()
-                width = int(height * 1.6 / 1)
-
-            print(width)
-            print(height)
-
-            self.notice_label_image.setPixmap(
-                self.notice_label_image_original.scaled(
-                    width, height, Qt.KeepAspectRatio, Qt.SmoothTransformation
-                )
-            )
+            self.notice_label_image.setPixmap(image_scaled)
 
     def loadStyleSheet(self):
         with open(resourcePath("styles.qss"), "r") as styles:
@@ -368,6 +439,7 @@ class UI(QMainWindow):
         self.initConfirmBtns()
         self.initContinuehbtn()
         self.initStatus()
+        self.initHiddenWebEngine()
 
         self.showMaximized()
         self.show()
@@ -424,7 +496,8 @@ class UI(QMainWindow):
         self.notice_label_image = Label(
             self.notice_label_box, ver_policy=self.EXPANDING
         )
-        self.notice_label_image.setScaledContents(True)
+        self.notice_label_image.setAlignment(Qt.AlignCenter)
+        self.notice_label_image.setScaledContents(False)
         self.notice_label_image.hide()
 
         self.notice_label = Label(self.notice_label_box)
@@ -527,11 +600,11 @@ class UI(QMainWindow):
 
         self.status_box.hide()
 
-    def updateProgressBar(
-        self, value=None, range=None, text=None, override=False
-    ):
+    def initHiddenWebEngine(self):
+        self.hidden_web_engine = WebEngineView(self.base)
+        self.hidden_web_engine.hide()
 
-        self.progress_label.setText(text) if text is not None else None
+    def updateProgressBar(self, value=None, range=None, override=False):
         self.progress_bar.setRange(0, range) if range is not None else None
 
         if override:
@@ -567,6 +640,7 @@ class UI(QMainWindow):
         warn_true=False,
         warn_false=False,
         image=None,
+        info=False,
     ):
         self.hideUI()
 
@@ -597,11 +671,77 @@ class UI(QMainWindow):
         self.true_btn.warn(warn_true)
         self.false_btn.warn(warn_false)
 
+        if info:
+            self.true_btn.setText("OK")
+            self.false_btn.hide()
+        else:
+            self.true_btn.setText("YES")
+            self.false_btn.show()
+
         self.loadStyleSheet()
 
-    def goHome(self):
+    def showHome(self):
         self.hideUI()
+
         self.task_btns_box.show()
+
+    def showBrowserPage(
+        self,
+        title,
+        status_label="Status: ",
+        status="Waiting For User Input...",
+        url=None,
+        interceptor=None,
+    ):
+        self.hideUI()
+
+        self.task_label_box.show()
+        self.task_label.setText(title)
+
+        self.web_engine_box.show()
+        self.web_engine.setUrl(url) if url is not None else None
+        if interceptor is not None:
+            self.web_engine.setInterceptor(interceptor)
+
+        self.status_box.show()
+        self.status_label.setText(status_label)
+        self.status.setText(status)
+
+        QTimer.singleShot(50, self.loadRoundedMask)
+
+    def showListPage(
+        self, title, status_label="Status: ", status="Waiting For User Input..."
+    ):
+        self.hideUI()
+
+        self.task_label_box.show()
+        self.task_label.setText(title)
+
+        ui.process_list_box.container.deleteChildren()
+        ui.process_list_box.show()
+
+        ui.process_options_box.show()
+
+        self.status_box.show()
+        self.status_label.setText(status_label)
+        self.status.setText(status)
+
+    def showTaskPage(
+        self, title, status_label="Status: ", status="Processing..."
+    ):
+        self.hideUI()
+        self.process_list_box.container.deleteChildren()
+
+        self.task_label.setText(title)
+        self.task_label_box.show()
+
+        self.progress_box.show()
+
+        self.notice_label_box.show()
+
+        self.status_label.setText(status_label)
+        self.status.setText(status)
+        self.status_box.show()
 
 
 class Book:
@@ -699,7 +839,7 @@ class Book:
         meta = ebookmeta.get_metadata(file_path)
         book = epubfile.Epub(file_path)
 
-        self.title = meta.title.split("(")[0]
+        self.title = meta.title.split("(")[0].split(":")[0]
         self.author = meta.author_list_to_string()
         self.series = meta.series if meta.series else None
         self.series_index = meta.series_index if meta.series_index else None
@@ -708,7 +848,7 @@ class Book:
         self.cover_id = cover_id if cover_id else None
         self.cover = book.read_file(cover_id) if cover_id else None
 
-        self.file_path = file_path
+        self.file_path = os.path.normpath(file_path)
         self.file_name = os.path.basename(self.file_path)
 
     def getCoverID(self, book):
@@ -747,16 +887,6 @@ class Book:
 
         return cover_id
 
-    def cleanPages(self):
-        book = epubfile.Epub(self.file_path)
-
-        for page in book.get_texts():
-            soup = book.read_file(page)
-            soup = re.sub(v.STRING_TO_REMOVE, "", soup, flags=re.IGNORECASE)
-            book.write_file(page, soup)
-
-        book.save(self.file_path)
-
     def saveBook(self):
         pass
 
@@ -768,7 +898,6 @@ class Downloads:
         self.adding_book = False
         self.books = []
 
-        ui.hideUI()
         ui.restart_btn.click(
             lambda: ui.confirmAction(
                 "Restarting Download Task!",
@@ -789,13 +918,6 @@ class Downloads:
             )
         )
 
-        ui.task_label_box.show()
-        ui.task_label.setText("Downloading New Books")
-
-        ui.status_box.show()
-        ui.status.setText("Waiting For User Input...")
-
-        ui.updateProgressBar(0, 1, "Progress: ", True)
         ui.continue_btn.setText("Process Downloads")
         ui.continue_btn.click(
             lambda: ui.confirmAction(
@@ -805,25 +927,21 @@ class Downloads:
             )
         )
 
-        ui.web_engine.setInterceptor(self.urlInterceptor)
-        ui.web_engine_box.show()
+        ui.updateProgressBar(0, 1, True)
 
-        ui.web_engine.setUrl(v.OCEANOFPDF_URL)
-
-        self.hidden_web_engine = WebEngineView(ui.base)
-        self.hidden_web_engine.hide()
-        self.hidden_web_engine.page().profile().downloadRequested.connect(
-            self.handleDownload
+        ui.hidden_web_engine.downloadReq(self.handleDownload)
+        ui.showBrowserPage(
+            "Downloading New Books",
+            url=v.OCEANOFPDF_URL,
+            interceptor=self.urlInterceptor,
         )
 
-        QTimer.singleShot(50, ui.loadRoundedMask)
-
     def restart(self):
-        self.hidden_web_engine.close()
+        ui.hidden_web_engine.close()
         startDownloadBooks()
 
     def close(self):
-        self.hidden_web_engine.close()
+        ui.hidden_web_engine.close()
         close()
 
     def urlInterceptor(self, url):
@@ -842,13 +960,15 @@ class Downloads:
                 ui.status.setText("EPUB Available, Fetching...")
 
                 ui.continue_btn_box.hide()
+                self.download_queue += 1
 
                 book = Book()
+
                 if not checkBookExists(self.books, "oceanofpdf_url", url):
                     self.books.append(book)
                     self.books[-1].oceanofpdf_url = url
-                    self.hidden_web_engine.loaded(self.openBookPage)
-                    self.hidden_web_engine.setUrl(url)
+                    ui.hidden_web_engine.loaded(self.openBookPage)
+                    ui.hidden_web_engine.setUrl(url)
                 else:
                     ui.status.setText(
                         "Already Downloaded!\nWaiting For User Input..."
@@ -858,6 +978,7 @@ class Downloads:
 
             ui.status.setText("EPUB NOT AVAILABLE!\nWaiting For User Input...")
             return False
+
         else:
             ui.status.setText("Waiting For User Input...")
 
@@ -871,7 +992,7 @@ class Downloads:
         query_tag = "input[type='image'][src^='https://media.oceanofpdf.com/epub-button']"
         js_code = f'document.querySelector("{query_tag}").click();'
 
-        self.hidden_web_engine.page().runJavaScript(js_code)
+        ui.hidden_web_engine.page().runJavaScript(js_code)
 
     def handleDownload(self, download):
         curr_dir = os.getcwd()
@@ -884,12 +1005,8 @@ class Downloads:
         download.setDownloadFileName(file_path)
         download.accept()
 
-        self.download_queue += 1
         ui.progress_box.show()
-        ui.updateProgressBar(
-            range=self.download_queue,
-            text=f"Downloading {self.download_queue} Files: ",
-        )
+        ui.updateProgressBar(range=self.download_queue)
 
         self.books[-1].file_name = file_name
         self.books[-1].file_path = file_path
@@ -905,16 +1022,13 @@ class Downloads:
         self.download_count += 1
 
         if self.download_count == self.download_queue:
-            ui.updateProgressBar(
-                text=f"Downloaded {self.download_count} Books: "
-            )
-
             ui.continue_btn_box.show()
 
 
 class Process:
     def __init__(self, books):
         self.books = []
+        self.curr_index = -1
 
         if not books == False:
             self.books = books
@@ -973,60 +1087,38 @@ class Process:
         return False
 
     def initBookSelection(self):
-        ui.hideUI()
+        ui.showListPage("Processing Books")
 
-        ui.task_label_box.show()
-        ui.task_label.setText(f"Processing {len(self.books)} Books")
-
-        ui.process_list_box.container.deleteChildren()
-        ui.process_list_box.show()
+        if len(self.books) > 0:
+            self.books.sort(key=lambda book: book.title.lower())
 
         for book in self.books:
             book.initListItem(
                 self.books, action=lambda: self.initBookSelection()
             )
 
-        ui.process_options_box.show()
         ui.select_downloads_btn.hide()
         ui.select_downloads_btn.show() if self.checkSource() else None
-
         ui.clear_selections_btn.hide()
-        ui.continue_btn_box.hide()
-        if len(self.books) > 0:
 
+        if len(self.books) > 0:
             ui.clear_selections_btn.show()
             ui.continue_btn_box.show()
 
-        ui.status_box.show()
-        ui.status.setText("Waiting For User Input...")
-
     def getSourceFiles(self):
-        ui.hideUI()
-
-        ui.notice_label_box.show()
-        ui.notice_label_title.setText("Fetching Downloaded Books")
-        ui.notice_label.warn(False)
-        ui.notice_label.setText(
-            "Please wait, fetching books downloaded with EPUB Metaclean..."
-        )
-
         files = [f for f in os.listdir(os.getcwd()) if f.endswith(".epub")]
 
-        if not files:
-            ui.status.setText("No Files In Source Folder!")
-            return
+        print(self.books)
 
         for file in files:
             book = Book()
-            book.getFileData(file)
+            book.getFileData(os.path.join(os.getcwd(), file))
             if book not in self.books:
                 self.books.append(book)
 
         self.confirmSourceFiles(0)
 
     def confirmSourceFiles(self, index):
-        ui.status.setText("Waiting For User Input...")
-
         if index == len(self.books):
             self.initBookSelection()
             return
@@ -1071,59 +1163,67 @@ class Process:
         self.initBookSelection()
 
     def cleanPages(self):
-        ui.hideUI()
-        ui.process_list_box.container.deleteChildren()
-
-        ui.task_label_box.show()
-        ui.progress_box.show()
-        ui.updateProgressBar(
-            0, len(self.books), f"Cleaning {len(self.books)} Books: ", True
-        )
-
-        ui.notice_label_box.show()
-        ui.notice_label_title.setText("Clearning Book Pages...")
-
-        ui.status_box.show()
-        ui.status.setText("Cleaning Books...")
+        ui.showTaskPage("Processing Books", status="Cleaning Books...")
 
         for book in self.books:
-            ui.notice_label.setText(f"Cleaning {book.title}...")
-            book.cleanPages()
+            ui.notice_label_title.setText(f"Cleaning {book.title}...")
+
+            book_file = epubfile.Epub(book.file_path)
+
+            book_pages = len(book_file.get_texts())
+            ui.updateProgressBar(0, book_pages, True)
+
+            for index, page in enumerate(book_file.get_texts(), start=1):
+                ui.notice_label.setText(f"Page {index} Of {book_pages}")
+                soup = book_file.read_file(page)
+                soup = re.sub(v.STRING_TO_REMOVE, "", soup, flags=re.IGNORECASE)
+                book_file.write_file(page, soup)
+                ui.updateProgressBar(1)
+
+            book_file.save(book.file_path)
+
             ui.updateProgressBar(1)
 
-        ui.progress_box.hide()
-        ui.notice_label_box.hide()
-        ui.current_file_box.show()
-        ui.web_engine.setInterceptor(self.urlInterceptor)
-        ui.web_engine_box.show()
+        self.searchBook()
 
-        QTimer.singleShot(50, ui.loadRoundedMask)
-
-        self.searchBook(0)
-
-    def urlInterceptor(self, url):
+    def urlBookInterceptor(self, url):
         url = str(url.toString())
 
         if url.startswith(v.GOODREADS_URL):
             url_path = url.replace(v.GOODREADS_URL, "")
 
             if url_path.startswith("book/show/"):
-                ui.web_engine.loaded(ui.nav_btns_box.show)
+                ui.web_engine.loaded(ui.select_btn.show)
             else:
                 try:
-                    ui.web_engine.loadFinished.disconnect(ui.nav_btns_box.show)
+                    ui.web_engine.loadFinished.disconnect(ui.select_btn.show)
                 except TypeError:
                     pass
 
-                ui.nav_btns_box.hide()
+                ui.select_btn.hide()
 
         return True
 
-    def searchBook(self, index):
-        ui.status.setText("Waiting For User Input...")
+    def searchBook(self):
+        self.curr_index += 1
 
-        ui.current_file_label.setText(
-            f"Searching For: {self.books[index].title}"
+        if self.curr_index == len(self.books):
+            self.manualEditBooks()
+            return
+
+        ui.select_btn.click(
+            lambda: ui.web_engine.page().toHtml(self.selectBook)
+        )
+
+        ui.skip_btn.setText("Skip")
+        ui.skip_btn.click(
+            lambda: ui.confirmAction(
+                "Skip File",
+                "Are you sure you want to skip searching for this books details?",
+                action_true=self.searchBook,
+                warn_text=True,
+                warn_true=True,
+            )
         )
 
         replacements = [
@@ -1135,41 +1235,42 @@ class Process:
             ".epub",
             " ",
         ]
-
-        query = self.books[index].title
+        query = self.books[self.curr_index].title
 
         for part in replacements:
             query = query.replace(part, "+")
 
-        ui.web_engine.setUrl(f"{v.GOODREADS_URL}search?q={query}")
-
-        ui.select_btn.click(
-            lambda: ui.web_engine.page().toHtml(
-                partial(self.selectBook, index=index)
-            )
-        )
-        ui.skip_btn.click(
-            lambda: ui.confirmAction(
-                "Skip File",
-                "Are you sure you want to skip searching for this books details?",
-                action_true=lambda: self.searchBook(index + 1),
-                warn_text=True,
-                warn_true=True,
-            )
+        ui.showBrowserPage(
+            "Processing Books",
+            url=f"{v.GOODREADS_URL}search?q={query}",
+            interceptor=self.urlBookInterceptor,
         )
 
-    def selectBook(self, html, index):
-        ui.status.setText("Pulling Book Data From Page...")
-        ui.progress_box.show()
-        ui.updateProgressBar(0, 7, "Fetching Data: ", True)
+        ui.current_file_box.show()
+        ui.current_file_label.setText(
+            f"Searching For: {self.books[self.curr_index].title}"
+        )
 
-        book = self.books[index]
+        ui.nav_btns_box.show()
+
+    def selectBook(self, html):
+        ui.showTaskPage(
+            "Processing Books", status="Pulling Book Data From Page..."
+        )
+
+        ui.updateProgressBar(0, 7, True)
+
+        book = self.books[self.curr_index]
         soup = BeautifulSoup(html, "html.parser")
 
+        ui.notice_label_title.setText("Fetching Data:")
+
         book.title = soup.select(".Text__title1")[0].text.strip()
+        ui.notice_label.setText(f"Title: {book.title}")
         ui.updateProgressBar(1)
 
         book.author = soup.select(".ContributorLink__name")[0].text.strip()
+        ui.notice_label.setText(f"Author: {book.author}")
         ui.updateProgressBar(1)
 
         series_link = soup.select_one(
@@ -1180,35 +1281,78 @@ class Process:
         if series_link:
             book.series = series_link.contents[0].strip()
             book.series_index = series_link.contents[1].strip()
+            ui.notice_label.setText(
+                f"Series: {book.series} #{book.series_index}"
+            )
 
         ui.updateProgressBar(1)
 
         if book.cover_id is None:
-            self.books[index] = book
-            self.books[index].save()
-            self.searchBook(index + 1)
+            self.books[self.curr_index] = book
+            ui.updateProgressBar(3)
+            self.searchBook()
             return
 
         book.cover_url = soup.select(".BookCover__image")[0].select("img")[0][
             "src"
         ]
+        ui.notice_label.setText(f"Cover URL: {book.cover_url}")
         ui.updateProgressBar(1)
 
+        ui.notice_label.setText(f"Cover: Downloading...")
         book.cover = requests.get(book.cover_url, stream=True).content
         ui.updateProgressBar(1)
 
-        self.books[index] = book
+        self.books[self.curr_index] = book
         ui.updateProgressBar(1)
 
-        self.selectCover(index, self.books[index].cover)
+        if self.curr_index == 0:
+            ui.confirmAction(
+                "Cover Instructions",
+                "To select a cover image, find an image you like and right click it. If it can be used, there will be a 'Select' option.",
+                lambda: self.selectCover(self.books[self.curr_index].cover),
+                info=True,
+            )
+        else:
+            self.selectCover(self.books[self.curr_index].cover)
 
-    def selectCover(self, index, image, accepted=None):
-        ui.confirmAction(
-            "Check Cover Image",
-            "Are you happy with this cover image?\n"
-            + "NOTE: You can search Google Images for a different cover image if you select no.",
-            image=image,
+    def selectCover(self, img_data, accepted=None):
+        image = resizeCoverImage(img_data)
+
+        if accepted is None:
+            ui.confirmAction(
+                "Check Cover Image",
+                "Are you happy with this cover image?\n"
+                + "NOTE: You can search Google Images for a different cover image if you select no.\n"
+                + "If the menu doesn't appear, the image is not the correct format.",
+                lambda: self.selectCover(image, True),
+                lambda: self.selectCover(image, False),
+                image=image,
+            )
+            return
+
+        if accepted:
+            self.books[self.curr_index].cover = image
+            ui.web_engine.setContextCall()
+            self.searchBook()
+            return
+
+        ui.web_engine.setContextCall(self.selectCover)
+
+        ui.showBrowserPage(
+            "Processing Book",
+            url=f"{v.IMAGE_PROVIDER_URL}{self.books[self.curr_index].title}",
         )
+
+        ui.select_btn.hide()
+        ui.skip_btn.setText("Goodreads")
+        ui.skip_btn.click(
+            lambda: self.selectCover(self.books[self.curr_index].cover)
+        )
+        ui.nav_btns_box.show()
+
+    def manualEditBooks(self):
+        pass
 
 
 def resourcePath(relative_path):
@@ -1224,6 +1368,19 @@ def checkBookExists(books, target_key, target_val):
     return any(getattr(book, target_key, False) == target_val for book in books)
 
 
+def resizeCoverImage(img_data):
+    image = Image.open(BytesIO(img_data))
+    if image.mode in ("RGBA", "P"):
+        image = image.convert("RGB")
+
+    image = image.resize((1600, 2560), Image.Resampling.LANCZOS)
+
+    output = BytesIO()
+    image.save(output, format="JPEG", quality=95)
+
+    return output.getvalue()
+
+
 def setup():
     ui.download_book_btn.click(startDownloadBooks)
     ui.process_books_btn.click(startProcessBooks)
@@ -1237,7 +1394,7 @@ def close():
     v.process_worker = None
     v.upload_worker = None
 
-    ui.goHome()
+    ui.showHome()
 
 
 def startDownloadBooks():
