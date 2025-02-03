@@ -7,7 +7,6 @@ import requests
 from io import BytesIO
 from PIL import Image
 from bs4 import BeautifulSoup
-from functools import partial
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
@@ -85,6 +84,7 @@ class Container:
 
     def deleteSelf(self):
         if self.W is not None:
+            self.deleteChildren()
             self.W.setParent(None)
             self.W.deleteLater()
 
@@ -328,7 +328,7 @@ class WebEngineView(QWebEngineView):
     def setUrl(self, url):
         url = QUrl(url)
         super().setUrl(url)
-        self.loaded(self.clearHistory)
+        # self.loaded(self.clearHistory)
 
     def clearHistory(self):
         self.history().clear()
@@ -835,7 +835,9 @@ class Book:
         if action is not None:
             action()
 
-    def getFileData(self, file_path):
+    def getFileData(self, file_path=None):
+        if file_path is None:
+            file_path = self.file_path
         meta = ebookmeta.get_metadata(file_path)
         book = epubfile.Epub(file_path)
 
@@ -888,7 +890,40 @@ class Book:
         return cover_id
 
     def saveBook(self):
-        pass
+        ui.notice_label_title.setText(f"Saving {self.title}")
+
+        ui.notice_label.setText("Opening Book...")
+        meta = ebookmeta.get_metadata(self.file_path)
+        ui.updateProgressBar(1)
+
+        ui.notice_label.setText(f"Title: {self.title}")
+        meta.title = self.title
+        ui.updateProgressBar(1)
+
+        ui.notice_label.setText(f"Author: {self.author}")
+        meta.set_author_list_from_string(self.author)
+        ui.updateProgressBar(1)
+
+        ui.notice_label.setText(f"Series: {self.series}")
+        meta.series = self.series
+        ui.updateProgressBar(1)
+
+        ui.notice_label.setText(f"Series: {self.series} #{self.series_index}")
+        meta.series_index = self.series_index
+        ui.updateProgressBar(1)
+
+        ui.notice_label.setText("Writing File...")
+        ebookmeta.set_metadata(self.file_path, meta)
+        ui.updateProgressBar(1)
+
+        ui.notice_label.setText(f"Setting Cover...")
+        if self.cover_id is not None:
+            book_file = epubfile.Epub(self.file_path)
+            ui.updateProgressBar(1)
+            book_file.write_file(self.cover_id, self.cover)
+            ui.updateProgressBar(1)
+            book_file.save(self.file_path)
+            ui.updateProgressBar(1)
 
 
 class Downloads:
@@ -923,7 +958,7 @@ class Downloads:
             lambda: ui.confirmAction(
                 "Process Books?",
                 "Are you sure you want to process these books?",
-                lambda: startProcessBooks(self.books),
+                self.startProcessBooks,
             )
         )
 
@@ -937,11 +972,11 @@ class Downloads:
         )
 
     def restart(self):
-        ui.hidden_web_engine.close()
+        ui.hidden_web_engine.hide()
         startDownloadBooks()
 
     def close(self):
-        ui.hidden_web_engine.close()
+        ui.hidden_web_engine.hide()
         close()
 
     def urlInterceptor(self, url):
@@ -1019,10 +1054,16 @@ class Downloads:
     def downloadComplete(self):
         ui.updateProgressBar(1)
 
+        self.books[-1].getFileData()
+
         self.download_count += 1
 
         if self.download_count == self.download_queue:
             ui.continue_btn_box.show()
+
+    def startProcessBooks(self):
+        ui.hidden_web_engine.hide()
+        startProcessBooks(self.books)
 
 
 class Process:
@@ -1208,7 +1249,8 @@ class Process:
         self.curr_index += 1
 
         if self.curr_index == len(self.books):
-            self.manualEditBooks()
+            self.curr_index = -1
+            self.saveBooks()
             return
 
         ui.select_btn.click(
@@ -1351,8 +1393,21 @@ class Process:
         )
         ui.nav_btns_box.show()
 
-    def manualEditBooks(self):
-        pass
+    def saveBooks(self):
+        ui.showTaskPage("Processing Books", status="Saving Books...")
+        ui.updateProgressBar(0, len(self.books) * 9, True)
+
+        for book in self.books:
+            book.saveBook()
+
+        ui.process_list_box.container.deleteChildren()
+
+        ui.confirmAction(
+            "Upload Books",
+            "Would you like to upload these books to Play Books?",
+            lambda: startUploadBooks(self.books),
+            close,
+        )
 
 
 def resourcePath(relative_path):
@@ -1406,7 +1461,7 @@ def startProcessBooks(books=False):
     v.process_worker = Process(books)
 
 
-def startUploadBooks():
+def startUploadBooks(books=False):
     pass
 
 
