@@ -19,6 +19,7 @@ class V:
     STRING_TO_REMOVE = "OceanofPDF.com"
     GOODREADS_URL = "https://www.goodreads.com/"
     IMAGE_PROVIDER_URL = "https://www.google.com/search?tbm=isch&q="
+    PLAY_BOOKS = "https://play.google.com/books"
 
     download_worker = None
     process_worker = None
@@ -310,20 +311,15 @@ class WebEngineView(QWebEngineView):
         self.image_select_callback = callback
 
     def loaded(self, slot):
-        def wrapper(wrapped_slot):
-            try:
-                self.loadFinished.disconnect()
-            except TypeError:
-                pass
+        self.loadedDone()
 
-            wrapped_slot()
+        self.loadFinished.connect(slot)
 
+    def loadedDone(self):
         try:
             self.loadFinished.disconnect()
         except TypeError:
             pass
-
-        self.loadFinished.connect(lambda: wrapper(slot))
 
     def setUrl(self, url):
         url = QUrl(url)
@@ -953,7 +949,7 @@ class Downloads:
         ui.close_btn.click(
             lambda: ui.confirmAction(
                 "Cancelling Download Task!",
-                "Are you sure you would like to cancel the download process?",
+                "Are you sure you would like to cancel the download task?",
                 self.close,
                 warn_text=True,
                 warn_true=True,
@@ -1039,7 +1035,10 @@ class Downloads:
         ui.continue_btn_box.hide()
 
         query_tag = "input[type='image'][src^='https://media.oceanofpdf.com/epub-button']"
-        js_code = f'document.querySelector("{query_tag}").click();'
+        js_code = (
+            f'var element = document.querySelector("{query_tag}");'
+            + "element.click();"
+        )
 
         download_engine.page().runJavaScript(js_code)
 
@@ -1101,8 +1100,8 @@ class Process:
 
         ui.close_btn.click(
             lambda: ui.confirmAction(
-                "Cancelling Download Task!",
-                "Are you sure you would like to cancel the download process?",
+                "Cancelling Process Task!",
+                "Are you sure you would like to cancel the process task?",
                 self.close,
                 warn_text=True,
                 warn_true=True,
@@ -1164,8 +1163,6 @@ class Process:
     def getSourceFiles(self):
         files = [f for f in os.listdir(os.getcwd()) if f.endswith(".epub")]
 
-        print(self.books)
-
         for file in files:
             book = Book()
             book.getFileData(os.path.join(os.getcwd(), file))
@@ -1203,9 +1200,6 @@ class Process:
             None, "Select Files", "", "EPUB FIles (*.epub)"
         )
 
-        if files:
-            ui.status.setText("Processing Selected Files...")
-
         for file in files:
             book = Book()
             book.getFileData(file)
@@ -1242,7 +1236,7 @@ class Process:
 
         self.searchBook()
 
-    def urlBookInterceptor(self, url):
+    def urlInterceptor(self, url):
         url = str(url.toString())
 
         if url.startswith(v.GOODREADS_URL):
@@ -1300,7 +1294,7 @@ class Process:
         ui.showBrowserPage(
             "Processing Books",
             url=f"{v.GOODREADS_URL}search?q={query}",
-            interceptor=self.urlBookInterceptor,
+            interceptor=self.urlInterceptor,
         )
 
         ui.current_file_box.show()
@@ -1425,6 +1419,210 @@ class Process:
         )
 
 
+class Upload:
+    def __init__(self, books):
+        self.books = []
+
+        if not books == False:
+            self.books = books
+
+        ui.restart_btn.click(
+            lambda: ui.confirmAction(
+                "Restarting Upload Task!",
+                "Are you sure you would like to restart the upload task?",
+                self.restart,
+                warn_text=True,
+                warn_true=True,
+            )
+        )
+
+        ui.close_btn.click(
+            lambda: ui.confirmAction(
+                "Cancelling Upload Task!",
+                "Are you sure you would like to cancel the upload task?",
+                self.close,
+                warn_text=True,
+                warn_true=True,
+            )
+        )
+
+        ui.select_downloads_btn.click(self.getSourceFiles)
+        ui.select_others_btn.click(self.getUserFiles)
+        ui.clear_selections_btn.click(
+            lambda: ui.confirmAction(
+                "Clear All Files",
+                "Are you sure you would like to clear all files from the list?\nNOTE: The source files will NOT be deleted!",
+                self.clearAllFiles,
+                warn_text=True,
+                warn_true=True,
+            )
+        )
+
+        ui.continue_btn.click(self.startPlayBooksUpload)
+        ui.continue_btn.setText("Upload Books")
+
+        self.initBookSelection()
+
+    def restart(self):
+        ui.process_list_box.container.deleteChildren()
+        startUploadBooks()
+
+    def close(self):
+        ui.process_list_box.container.deleteChildren()
+        close()
+
+    def getSourceFiles(self):
+        files = [f for f in os.listdir(os.getcwd()) if f.endswith(".epub")]
+
+        for file in files:
+            book = Book()
+            book.getFileData(os.path.join(os.getcwd(), file))
+            if book not in self.books:
+                self.books.append(book)
+
+        self.confirmSourceFiles(0)
+
+    def confirmSourceFiles(self, index):
+        if index == len(self.books):
+            self.initBookSelection()
+            return
+
+        base_text = (
+            "Would you like to upload this book?\n"
+            + self.books[index].file_name
+        )
+
+        ui.confirmAction(
+            "Upload This Book?",
+            base_text,
+            lambda: self.confirmSourceFiles(index + 1),
+            lambda: self.books[index].deleteBook(
+                self.books, action=lambda: self.confirmSourceFiles(index)
+            ),
+        )
+
+    def getUserFiles(self):
+        files, _ = QFileDialog.getOpenFileNames(
+            None, "Select Files", "", "EPUB FIles (*.epub)"
+        )
+
+        for file in files:
+            book = Book()
+            book.getFileData(file)
+            if book not in self.books:
+                self.books.append(book)
+
+        self.initBookSelection()
+
+    def clearAllFiles(self):
+        self.books = []
+        self.initBookSelection()
+
+    def checkSource(self):
+        files = [f for f in os.listdir(os.getcwd()) if f.endswith(".epub")]
+
+        if files:
+            return True
+
+        return False
+
+    def initBookSelection(self):
+        ui.showListPage("Uploading Books")
+
+        if len(self.books) > 0:
+            self.books.sort(key=lambda book: book.title.lower())
+
+        for book in self.books:
+            book.initListItem(
+                self.books, action=lambda: self.initBookSelection()
+            )
+
+        ui.select_downloads_btn.hide()
+        ui.select_downloads_btn.show() if self.checkSource() else None
+        ui.clear_selections_btn.hide()
+
+        if len(self.books) > 0:
+            ui.clear_selections_btn.show()
+            ui.continue_btn_box.show()
+
+    def startPlayBooksUpload(self, upload_confirmed=False):
+        ui.continue_btn_box.hide()
+
+        if not upload_confirmed:
+            ui.confirmAction(
+                "Upload To Play Books?",
+                "Would you like to upload these books to play books?",
+                lambda: self.startPlayBooksUpload(True),
+                self.close,
+            )
+
+        else:
+            ui.web_engine.loaded(lambda: self.checkPlayBooksLogin())
+            ui.showBrowserPage(
+                "Uploading Books To Play Books",
+                status="Uploading To Play Books...",
+                url=v.PLAY_BOOKS,
+            )
+            ui.continue_btn.click(lambda: self.startPlayBooksUpload(True))
+            ui.continue_btn.setText("I Have Logged In")
+
+    def checkPlayBooksLogin(self, logged_in=None):
+        ui.web_engine.loadedDone()
+
+        if logged_in is None:
+            js_code = (
+                "var element = Array.from(document.querySelectorAll('span.mdc-button__label')).find("
+                "el => el.textContent.trim() === 'Upload files');"
+                "if (element) { element.click(); true; } else { false; }"
+            )
+
+            ui.web_engine.page().runJavaScript(
+                js_code, lambda result: self.checkPlayBooksLogin(result)
+            )
+            return
+
+        if not logged_in:
+            query_tag = "a[aria-label='Sign in'][href^='https://accounts.google.com/ServiceLogin']"
+            js_code = (
+                f'var element = document.querySelector("{query_tag}");'
+                + "if (element) {{"
+                + "element.click();"
+                + "}}"
+            )
+
+            ui.web_engine.page().runJavaScript(js_code)
+
+            ui.confirmAction(
+                "Login Required",
+                "Please login to your google account. Click OK when you are done.",
+                lambda: (ui.restoreUI(), ui.continue_btn_box.show()),
+                info=True,
+            )
+            return
+
+        QTimer.singleShot(500, self.uploadToPlayBooks)
+
+    def uploadToPlayBooks(self, position=None):
+        if position is None:
+            js_code = """
+            var iframe = document.querySelector('iframe.picker.modal-dialog-bg');
+            if (iframe) {
+                var rect = iframe.getBoundingClientRect();
+                JSON.stringify({ x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 });
+            } else {
+                null;
+            }
+            """
+
+            ui.web_engine.page().runJavaScript(
+                js_code,
+                lambda result: QTimer.singleShot(
+                    500, lambda: self.uploadToPlayBooks(result)
+                ),
+            )
+            return
+
+
 def resourcePath(relative_path):
     try:
         base_path = sys._MEIPASS
@@ -1477,7 +1675,8 @@ def startProcessBooks(books=False):
 
 
 def startUploadBooks(books=False):
-    pass
+    v.upload_worker = None
+    v.upload_worker = Upload(books)
 
 
 if __name__ == "__main__":
