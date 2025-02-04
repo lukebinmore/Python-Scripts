@@ -344,6 +344,11 @@ class WebEngineView(QWebEngineView):
 
         self.page().profile().downloadRequested.connect(slot)
 
+    def deleteSelf(self):
+        if self is not None:
+            self.setParent(None)
+            self.deleteLater()
+
 
 class UI(QMainWindow):
     DEFAULT_MARGIN = 3, 3, 3, 3
@@ -439,7 +444,7 @@ class UI(QMainWindow):
         self.initConfirmBtns()
         self.initContinuehbtn()
         self.initStatus()
-        self.initHiddenWebEngine()
+        self.initHiddenWebEngineContainer()
 
         self.showMaximized()
         self.show()
@@ -600,9 +605,9 @@ class UI(QMainWindow):
 
         self.status_box.hide()
 
-    def initHiddenWebEngine(self):
-        self.hidden_web_engine = WebEngineView(self.base)
-        self.hidden_web_engine.hide()
+    def initHiddenWebEngineContainer(self):
+        self.hidden_engines_box = Container(self.base)
+        self.hidden_engines_box.hide()
 
     def updateProgressBar(self, value=None, range=None, override=False):
         self.progress_bar.setRange(0, range) if range is not None else None
@@ -838,6 +843,7 @@ class Book:
     def getFileData(self, file_path=None):
         if file_path is None:
             file_path = self.file_path
+
         meta = ebookmeta.get_metadata(file_path)
         book = epubfile.Epub(file_path)
 
@@ -930,8 +936,9 @@ class Downloads:
     def __init__(self):
         self.download_queue = 0
         self.download_count = 0
-        self.adding_book = False
         self.books = []
+        self.download_map = {}
+        self.locked = False
 
         ui.restart_btn.click(
             lambda: ui.confirmAction(
@@ -964,7 +971,6 @@ class Downloads:
 
         ui.updateProgressBar(0, 1, True)
 
-        ui.hidden_web_engine.downloadReq(self.handleDownload)
         ui.showBrowserPage(
             "Downloading New Books",
             url=v.OCEANOFPDF_URL,
@@ -972,62 +978,70 @@ class Downloads:
         )
 
     def restart(self):
-        ui.hidden_web_engine.hide()
+        ui.hidden_engines_box.deleteChildren()
         startDownloadBooks()
 
     def close(self):
-        ui.hidden_web_engine.hide()
+        ui.hidden_engines_box.deleteChildren()
         close()
 
     def urlInterceptor(self, url):
-        url = url.toString()
+        url = str(url.toString())
 
-        url_path = str(url).replace(v.OCEANOFPDF_URL, "")
-
-        if self.adding_book:
-            ui.status.setText("Please Wait...")
-            return False
+        url_path = url.replace(v.OCEANOFPDF_URL, "")
 
         if url_path.startswith("authors/"):
+            if self.locked:
+                return False
+
             epub_available = url_path.split("/")[2].replace("pdf-", "")
 
             if epub_available.startswith("epub"):
                 ui.status.setText("EPUB Available, Fetching...")
 
-                ui.continue_btn_box.hide()
-                self.download_queue += 1
-
-                book = Book()
-
                 if not checkBookExists(self.books, "oceanofpdf_url", url):
+                    ui.continue_btn_box.hide()
+
+                    book = Book()
+                    book.oceanofpdf_url = url
                     self.books.append(book)
-                    self.books[-1].oceanofpdf_url = url
-                    ui.hidden_web_engine.loaded(self.openBookPage)
-                    ui.hidden_web_engine.setUrl(url)
+
+                    download_engine = WebEngineView(ui.hidden_engines_box)
+
+                    self.download_map[download_engine] = book
+
+                    download_engine.downloadReq(self.handleDownload)
+                    download_engine.loaded(
+                        lambda: self.openBookPage(download_engine)
+                    )
+                    download_engine.setUrl(url)
+                    self.locked = False
+                    self.download_queue += 1
+
                 else:
                     ui.status.setText(
-                        "Already Downloaded!\nWaiting For User Input..."
+                        "Already Downloaded! - Waiting For User Input..."
                     )
 
                 return False
 
-            ui.status.setText("EPUB NOT AVAILABLE!\nWaiting For User Input...")
-            return False
+            else:
+                ui.status.setText(
+                    "EPUB NOT AVAILABLE! - Waiting For User Input..."
+                )
 
-        else:
-            ui.status.setText("Waiting For User Input...")
+            return False
 
         return True
 
-    def openBookPage(self):
+    def openBookPage(self, download_engine):
         ui.status.setText("Adding Book To Download Queue...")
-        self.adding_book = True
         ui.continue_btn_box.hide()
 
         query_tag = "input[type='image'][src^='https://media.oceanofpdf.com/epub-button']"
         js_code = f'document.querySelector("{query_tag}").click();'
 
-        ui.hidden_web_engine.page().runJavaScript(js_code)
+        download_engine.page().runJavaScript(js_code)
 
     def handleDownload(self, download):
         curr_dir = os.getcwd()
@@ -1043,26 +1057,25 @@ class Downloads:
         ui.progress_box.show()
         ui.updateProgressBar(range=self.download_queue)
 
-        self.books[-1].file_name = file_name
-        self.books[-1].file_path = file_path
+        book = self.download_map.get(download.page().view(), None)
+        book.file_name = file_name
+        book.file_path = file_path
 
         download.finished.connect(self.downloadComplete)
 
-        self.adding_book = False
         ui.status.setText("Waiting For User Input...")
 
     def downloadComplete(self):
         ui.updateProgressBar(1)
 
-        self.books[-1].getFileData()
-
         self.download_count += 1
 
         if self.download_count == self.download_queue:
+            ui.hidden_engines_box.deleteChildren()
             ui.continue_btn_box.show()
 
     def startProcessBooks(self):
-        ui.hidden_web_engine.hide()
+        ui.hidden_engines_box.deleteChildren()
         startProcessBooks(self.books)
 
 
@@ -1073,6 +1086,8 @@ class Process:
 
         if not books == False:
             self.books = books
+            for book in self.books:
+                book.getFileData()
 
         ui.restart_btn.click(
             lambda: ui.confirmAction(
