@@ -1662,7 +1662,20 @@ class Upload:
             return
 
         if not upload_in_progress:
-            self.close()
+            ui.confirmAction(
+                "Delete Source Files",
+                "Would you like to delete the source files for the uploaded books?",
+                self.deleteSource,
+                self.close,
+                warn_text=True,
+                warn_true=True,
+            )
+
+    def deleteSource(self):
+        for book in self.books:
+            book.deleteBook(True)
+
+        self.close()
 
 
 def resourcePath(relative_path):
