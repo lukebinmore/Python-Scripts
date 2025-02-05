@@ -4,6 +4,7 @@ import re
 import epubfile
 import ebookmeta
 import requests
+import json
 from io import BytesIO
 from PIL import Image
 from bs4 import BeautifulSoup
@@ -339,11 +340,6 @@ class WebEngineView(QWebEngineView):
             pass
 
         self.page().profile().downloadRequested.connect(slot)
-
-    def deleteSelf(self):
-        if self is not None:
-            self.setParent(None)
-            self.deleteLater()
 
 
 class UI(QMainWindow):
@@ -959,7 +955,7 @@ class Downloads:
         ui.continue_btn.setText("Process Downloads")
         ui.continue_btn.click(
             lambda: ui.confirmAction(
-                "Process Books?",
+                "Process Books",
                 "Are you sure you want to process these books?",
                 self.startProcessBooks,
             )
@@ -1031,6 +1027,7 @@ class Downloads:
         return True
 
     def openBookPage(self, download_engine):
+        print("test")
         ui.status.setText("Adding Book To Download Queue...")
         ui.continue_btn_box.hide()
 
@@ -1245,11 +1242,7 @@ class Process:
             if url_path.startswith("book/show/"):
                 ui.web_engine.loaded(ui.select_btn.show)
             else:
-                try:
-                    ui.web_engine.loadFinished.disconnect(ui.select_btn.show)
-                except TypeError:
-                    pass
-
+                ui.web_engine.loadedDone()
                 ui.select_btn.hide()
 
         return True
@@ -1600,27 +1593,76 @@ class Upload:
             )
             return
 
-        QTimer.singleShot(500, self.uploadToPlayBooks)
+        QTimer.singleShot(500, lambda: self.handlePlayBooksUpload())
 
-    def uploadToPlayBooks(self, position=None):
+    def handlePlayBooksUpload(self, position=None):
         if position is None:
+
             js_code = """
-            var iframe = document.querySelector('iframe.picker.modal-dialog-bg');
+            var iframe = document.getElementById(':0.contentEl');
             if (iframe) {
                 var rect = iframe.getBoundingClientRect();
-                JSON.stringify({ x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 });
+                JSON.stringify({x: rect.x + rect.width / 2, y: rect.y + rect.height / 2});
             } else {
-                null;
+                JSON.stringify(null);
+            }
+            """
+
+            ui.web_engine.page().runJavaScript(
+                js_code, lambda result: self.handlePlayBooksUpload(result)
+            )
+
+            return
+
+        if position == "null":
+            QTimer.singleShot(100, lambda: self.handlePlayBooksUpload())
+            return
+
+        pos_data = json.loads(position)
+        x, y = int(pos_data["x"]), int(pos_data["y"])
+        view_pos = ui.web_engine.mapToGlobal(QPoint(x, y))
+
+        file_paths = [QUrl.fromLocalFile(book.file_path) for book in self.books]
+
+        mime_data = QMimeData()
+        mime_data.setUrls(file_paths)
+
+        drag = QDrag(ui.web_engine)
+        drag.setMimeData(mime_data)
+
+        cursor = QCursor()
+
+        QTimer.singleShot(
+            2000,
+            lambda: (
+                cursor.setPos(view_pos.x(), view_pos.y()),
+                drag.exec_(Qt.CopyAction),
+                self.cleanupPlayBooks(),
+            ),
+        )
+
+    def cleanupPlayBooks(self, upload_in_progress=True):
+        if upload_in_progress:
+            js_code = """
+            var element = document.getElementById(':0.contentEl');
+            if (element) {
+                true;
+            } else {
+                false;
             }
             """
 
             ui.web_engine.page().runJavaScript(
                 js_code,
                 lambda result: QTimer.singleShot(
-                    500, lambda: self.uploadToPlayBooks(result)
+                    500, lambda: self.cleanupPlayBooks(result)
                 ),
             )
+
             return
+
+        if not upload_in_progress:
+            self.close()
 
 
 def resourcePath(relative_path):
