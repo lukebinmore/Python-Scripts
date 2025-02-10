@@ -71,7 +71,7 @@ class Container(QScrollArea, BaseWidget):
         self.layout.setContentsMargins(left, top, right, bottom)
 
     def clear(self):
-        for child in self.findChildren(QWidget):
+        for child in self.container.findChildren(QWidget):
             child.setParent(None)
             child.deleteLater()
 
@@ -213,6 +213,8 @@ class WebEngineView(QWebEngineView, BaseWidget):
         self.history().clear()
 
     def createWindow(self, _type):
+        new_page = self.page()
+        new_page.setUrl(new_page.requestedUrl())
         return self
 
     def downloadReq(self, slot):

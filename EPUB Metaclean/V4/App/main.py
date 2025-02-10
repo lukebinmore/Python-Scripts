@@ -141,6 +141,7 @@ class Downloads:
         }
         """
         download_engine.page().runJavaScript(js_code)
+        self.locked = False
 
     def handleDownload(self, download):
         file_name = os.path.basename(download.suggestedFileName().replace("/OceanofPDF.com/", ""))
@@ -159,7 +160,6 @@ class Downloads:
         book.file_path = file_path
         download.finished.connect(lambda: self.downloadComplete(download))
         ui.status.setText("Waiting For User Input...")
-        self.locked = False
 
     def downloadComplete(self, download):
         download_engine = download.page().view()
@@ -171,6 +171,7 @@ class Downloads:
         ui.progress_bar.update()
         self.download_count += 1
         if self.download_count >= self.download_queue:
+            ui.status.setText("Waiting For User Input...")
             ui.continue_btn_box.show()
 
     def startProcessBooks(self):
