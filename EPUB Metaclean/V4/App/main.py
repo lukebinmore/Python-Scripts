@@ -4,7 +4,7 @@ from ui import UI
 from book_class import Book
 from helper_functions import *
 from qt_overrides import WebEngineView
-from PyQt5.QtWidgets import QApplication
+from PyQt5.QtWidgets import QApplication, QMainWindow
 from PyQt5.QtCore import QTimer
 
 
@@ -17,6 +17,8 @@ class Downloads:
         self.locked = False
         self.retry_attempts = {}
         self.MAX_RETRIES = 3
+
+        self.windows = []
 
         self.setupUI()
 
@@ -51,6 +53,7 @@ class Downloads:
         ui.progress_bar.config(0, 0, "Downloading: %v / %m")
 
         ui.showBrowserPage("Downloading New Books", G.OCEANOFPDF_URL, interceptor=self.urlInterceptor)
+        ui.hidden_engines_box.show()
 
     def cleanUp(self):
         ui.hidden_engines_box.clear()
@@ -72,18 +75,17 @@ class Downloads:
     def urlInterceptor(self, url):
         url = str(url.toString())
         url_part = url.replace(G.OCEANOFPDF_URL, "")
+        print(url)
 
         if self.locked:
             ui.status.setText("Please Wait...")
             return False
 
-        if not url_part.startswith("authors/"):
+        if "pdf-" not in url_part or "epub-" not in url_part:
             return True
 
-        epub_available = url_part.split("/")[2].replace("pdf-", "")
-
-        if not epub_available.startswith("epub"):
-            ui.status.setText("EPUB Not Available!! - Waiting For User Input...")
+        if "epub-" not in url_part:
+            ui.status.setText("EPUB Not Available! - Waiting For User Input...")
             return False
 
         if checkBookExists(self.books, "oceanofpdf_url", url):
@@ -100,36 +102,18 @@ class Downloads:
         book = Book()
         book.oceanofpdf_url = url
         self.books.append(book)
-        download_engine = WebEngineView(ui.hidden_engines_box)
+
+        new_window = QMainWindow()
+        new_window.setGeometry(100, 100, 600, 600)
+        download_engine = WebEngineView()
+        new_window.setCentralWidget(download_engine)
+        self.windows.append(new_window)
+        new_window.show()
         self.download_map[download_engine] = book
-        self.retry_attempts[download_engine] = 0
-
-        timeout_timer = QTimer()
-        timeout_timer.setSingleShot(True)
-        timeout_timer.timeout.connect(lambda: self.handleTimeout(download_engine))
-        timeout_timer.start(15000)
-        download_engine.timeout_timer = timeout_timer
-
         download_engine.downloadReq(self.handleDownload)
         download_engine.loaded(lambda: self.openBookPage(download_engine))
         download_engine.setUrl(url)
         self.download_queue += 1
-
-    def handleTimeout(self, download_engine):
-        if download_engine not in self.download_map:
-            return
-
-        retries = self.retry_attempts.get(download_engine, 0)
-        if retries >= self.MAX_RETRIES:
-            ui.status.setText("Download Failed! - Skipping")
-            self.download_map.pop(download_engine, None)
-            download_engine.delete()
-            return
-
-        ui.status.setText(f"Download Timed Out! Retrying ({retries + 1})/{self.MAX_RETRIES}...")
-        self.retry_attempts[download_engine] += 1
-
-        download_engine.reload()
 
     def openBookPage(self, download_engine):
         ui.status.setText("Adding Book To Download Queue...")

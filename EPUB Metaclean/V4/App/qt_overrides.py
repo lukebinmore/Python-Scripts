@@ -128,6 +128,8 @@ class WebEnginePage(QWebEnginePage):
         self.intercept_callback = intercept_callback
 
     def acceptNavigationRequest(self, url, _type, is_main_frame):
+        print(_type)
+        print(url)
         if self.intercept_callback is not None:
             return self.intercept_callback(url)
 
@@ -213,9 +215,16 @@ class WebEngineView(QWebEngineView, BaseWidget):
         self.history().clear()
 
     def createWindow(self, _type):
-        new_page = self.page()
-        new_page.setUrl(new_page.requestedUrl())
-        return self
+        temp_view = QWebEngineView()
+
+        def handle_new_url(url):
+            print("Intercepted _blank URL:", url.toString())
+            self.setUrl(url)
+            temp_view.deleteLater()
+
+        temp_view.page().urlChanged.connect(handle_new_url)
+
+        return temp_view
 
     def downloadReq(self, slot):
         try:
