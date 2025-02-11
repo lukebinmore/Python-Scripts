@@ -7,6 +7,9 @@ from qt_overrides import WebEngineView
 from PyQt5.QtWidgets import QApplication, QMainWindow
 from PyQt5.QtCore import QTimer
 
+from PyQt5.QtWidgets import *
+from functools import partial
+
 
 class Downloads:
     def __init__(self):
@@ -50,10 +53,7 @@ class Downloads:
             )
         )
 
-        ui.progress_bar.config(0, 0, "Downloading: %v / %m")
-
         ui.showBrowserPage("Downloading New Books", G.OCEANOFPDF_URL, interceptor=self.urlInterceptor)
-        ui.hidden_engines_box.show()
 
     def cleanUp(self):
         ui.hidden_engines_box.clear()
@@ -75,7 +75,6 @@ class Downloads:
     def urlInterceptor(self, url):
         url = str(url.toString())
         url_part = url.replace(G.OCEANOFPDF_URL, "")
-        print(url)
 
         if self.locked:
             ui.status.setText("Please Wait...")
@@ -99,17 +98,36 @@ class Downloads:
     def queueDownload(self, url):
         ui.status.setText("EPUB Available, Fetching...")
         ui.continue_btn_box.hide()
+        ui.book_list_box.show()
+
         book = Book()
-        book.oceanofpdf_url = url
         self.books.append(book)
+        book.book_lists.append(self.books)
+
+        book.oceanofpdf_url = url
+        book.title = (
+            url.lower()
+            .split("/")[-2]
+            .replace("pdf-", "")
+            .replace("epub-", "")
+            .replace("download", "")
+            .replace("-", " ")
+            .title()
+        )
+        book.book_list_item = ui.BookItem(ui, book)
+        book.book_list_item.item_progress_bar.config(text="Downloading")
+        book.book_list_item.item_progress_bar.show()
+
+        download_engine = WebEngineView(ui.hidden_engines_box)
 
         new_window = QMainWindow()
         new_window.setGeometry(100, 100, 600, 600)
-        download_engine = WebEngineView()
         new_window.setCentralWidget(download_engine)
         self.windows.append(new_window)
         new_window.show()
+
         self.download_map[download_engine] = book
+
         download_engine.downloadReq(self.handleDownload)
         download_engine.loaded(lambda: self.openBookPage(download_engine))
         download_engine.setUrl(url)
@@ -117,7 +135,6 @@ class Downloads:
 
     def openBookPage(self, download_engine):
         ui.status.setText("Adding Book To Download Queue...")
-        download_engine.loadedDone()
         js_code = """
         var element = document.querySelector("input[type='image'][src^='https://media.oceanofpdf.com/epub-button']");
         if (element) {
@@ -132,8 +149,6 @@ class Downloads:
         file_path = os.path.join(os.getcwd(), file_name)
         download.setDownloadFileName(file_path)
         download.accept()
-        ui.progress_box.show()
-        ui.progress_bar.config(range=self.download_queue)
         book = self.download_map.get(download.page().view())
 
         if book is None:
@@ -142,17 +157,18 @@ class Downloads:
 
         book.file_name = file_name
         book.file_path = file_path
+        download.downloadProgress.connect(book.book_list_item.item_progress_bar.updateProgress)
         download.finished.connect(lambda: self.downloadComplete(download))
         ui.status.setText("Waiting For User Input...")
 
     def downloadComplete(self, download):
         download_engine = download.page().view()
         book = self.download_map.pop(download_engine, None)
+
         if book:
             book.getFileData(book.file_path)
         download_engine.delete()
 
-        ui.progress_bar.update()
         self.download_count += 1
         if self.download_count >= self.download_queue:
             ui.status.setText("Waiting For User Input...")

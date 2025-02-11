@@ -5,51 +5,55 @@ from helper_functions import *
 from globals import Globals as G
 
 
-class BookItem(Container):
-    def __init__(self, parent, book, edit_action=None, delete_action=None):
-        super().__init__(parent, name="book_list_item", vertical=False, ver_policy=QSizePolicy.Minimum)
-
-        self.book = book
-        self.edit_action = edit_action
-        self.delete_action = delete_action
-
-        details = self.generateDetails()
-        self.item_text = Label(self, text=details, hor_policy=QSizePolicy.Expanding)
-        # self.edit_btn = PushButton(self, text=" 📝 ")
-        self.delete_btn = PushButton(self, text=" 🗑 ", warn=True)
-
-    def generateDetails(self):
-        details = []
-        if self.book.title is not None:
-            details.append(f"Title: {self.book.title}\n")
-            if self.book.author is not None:
-                details.append(f"Author: {self.book.author}\n")
-            if self.book.series is not None:
-                details.append(f"Series: {self.book.series}\n")
-            if self.book.series_index is not None:
-                details.append(f"Book: #{self.book.series_index}")
-        else:
-            details.append(f"File Name: {self.book.file_name}")
-
-        return "".join(details)
-
-    def deleteBook(self, ui, book_list, action_true=None, action_false=None):
-        cover_exists = False if self.book.cover is None else True
-        action_true = action_true or ui.restoreUI()
-        action_false = action_false or ui.restoreUI()
-
-        ui.confirmAction(
-            "Deleting Book",
-            "Would you like to delete the source file?",
-            lambda: (action_true(), self.book.deleteBook(book_list, True)),
-            lambda: (action_false(), self.book.deleteBook(book_list, False)),
-            warn_text=True,
-            warn_true=True,
-            image=resizeCoverImage(self.book.cover) if cover_exists else None,
-        )
-
-
 class UI(QMainWindow):
+    class BookItem(Container):
+        def __init__(self, ui, book, delete_action=None):
+            super().__init__(
+                ui.book_list_box, name="book_list_item", vertical=False, ver_policy=QSizePolicy.MinimumExpanding
+            )
+
+            self.ui = ui
+            self.book = book
+            self.delete_action = delete_action or ui.restoreUI
+
+            self.item_details = Container(self, "book_list_item_details", hor_policy=G.EXPANDING)
+            self.item_label = Label(self.item_details)
+            self.item_author = Label(self.item_details)
+            self.item_series = Label(self.item_details)
+            self.item_series_index = Label(self.item_details)
+            self.item_progress_bar = ProgressBar(self.item_details)
+            self.item_progress_bar.hide()
+
+            self.updateData()
+
+            self.delete_btn = PushButton(self, text=" 🗑 ", warn=True)
+            self.delete_btn.click(self.deleteBook)
+
+        def updateData(self):
+            self.item_label.setText(self.book.title)
+            self.item_author.setText(f"Author: {self.book.author}")
+            self.item_series.setText(f"Series: {self.book.series}")
+            self.item_series_index.setText(f"Book: #{self.book.series_index}")
+
+            self.item_author.setVisible(bool(self.book.author))
+            self.item_series.setVisible(bool(self.book.series))
+            self.item_series_index.setVisible(bool(self.book.series_index))
+
+        def deleteBook(self):
+            cover_exists = False if self.book.cover is None else True
+
+            self.ui.confirmAction(
+                "Deleting Book",
+                "Would you like to delete the source file?",
+                lambda: (self.delete_action(), self.book.deleteBook(True)),
+                lambda: (self.delete_action(), self.book.deleteBook(False)),
+                warn_text=True,
+                warn_true=True,
+                image=resizeCoverImage(self.book.cover) if cover_exists else None,
+            )
+
+            self.delete()
+
     def __init__(self):
         super().__init__()
 
@@ -74,7 +78,6 @@ class UI(QMainWindow):
         self.updateFontSize()
         self.loadStyleSheet()
         self.updateImageSize()
-        self.loadRoundedMask()
 
     def updateFontSize(self):
         screen_size = QApplication.primaryScreen().size()
@@ -95,16 +98,9 @@ class UI(QMainWindow):
                 self.notice_label_image_original.scaled(self.notice_label_image.size(), Qt.KeepAspectRatio)
             )
 
-    def loadRoundedMask(self):
-        radius = int(self.style_variables["border_radius"].replace("px", ""))
-        path = QPainterPath()
-        rect = QRectF(self.web_engine.rect())
-        path.addRoundedRect(rect, radius, radius)
-        self.web_engine.setMask(QRegion(path.toFillPolygon().toPolygon()))
-
     def initUI(self):
-        def createContainer(name, vertical=True, hor_policy=None, ver_policy=None):
-            container = Container(self.base, name, vertical=vertical, hor_policy=hor_policy, ver_policy=ver_policy)
+        def createContainer(name, vertical=True, hor_policy=None, ver_policy=None, parent=self.base):
+            container = Container(parent, name, vertical=vertical, hor_policy=hor_policy, ver_policy=ver_policy)
             container.hide()
             return container
 
@@ -114,10 +110,6 @@ class UI(QMainWindow):
             self.task_label = Label(self.task_label_box, hor_policy=G.EXPANDING)
             self.task_label.setAlignment(Qt.AlignCenter)
             self.close_btn = PushButton(self.task_label_box, text=" X ", warn=True)
-
-        def initProgressBar():
-            self.progress_box = createContainer("progress_box")
-            self.progress_bar = ProgressBar(self.progress_box, "progress_bar")
 
         def initCurrentFileLabel():
             self.current_file_box = createContainer("current_file_box")
@@ -140,19 +132,27 @@ class UI(QMainWindow):
             self.process_task_btn = PushButton(self.task_btns_box, "process_task_btn", "Process Books")
             self.upload_task_btn = PushButton(self.task_btns_box, "upload_task_btn", "Upload Books")
 
-        def initBookList():
-            self.book_list_box = createContainer("book_list_box", ver_policy=G.EXPANDING)
-            self.book_list_box.setSpacing(5)
+        def initCenterBox():
+            def initWebEngine():
+                self.web_engine_box = createContainer(
+                    "web_engine_box", parent=self.center_box, hor_policy=G.EXPANDING, ver_policy=G.EXPANDING
+                )
+                self.web_engine = WebEngineView(self.web_engine_box, "web_engine")
+
+            def initBookList():
+                self.book_list_box = createContainer("book_list_box", parent=self.center_box, ver_policy=G.EXPANDING)
+                self.book_list_box.setSpacing(5)
+
+            self.center_box = createContainer("center_box", vertical=False, ver_policy=G.EXPANDING)
+            self.center_box.setSpacing(5)
+            initWebEngine()
+            initBookList()
 
         def initBookOptions():
             self.book_options_box = createContainer("book_options_box", False)
             self.select_downloads_btn = PushButton(self.book_options_box, text="Select Downloadeds")
             self.select_others_btn = PushButton(self.book_options_box, text="Select Other Books")
             self.clear_all_btn = PushButton(self.book_options_box, text="Clear All")
-
-        def initWebEngine():
-            self.web_engine_box = createContainer("web_engine_box", ver_policy=G.EXPANDING)
-            self.web_engine = WebEngineView(self.web_engine_box, "web_engine")
 
         def initNavBtns():
             self.nav_btns_box = createContainer("nav_btns_box", False)
@@ -179,13 +179,11 @@ class UI(QMainWindow):
             self.hidden_engines_box = createContainer("hidden_engines_box")
 
         initTaskLabel()
-        initProgressBar()
         initCurrentFileLabel()
         initNoticeLabel()
         initTaskBtns()
-        initBookList()
+        initCenterBox()
         initBookOptions()
-        initWebEngine()
         initNavBtns()
         initConfirmBtns()
         initContinueBtn()
@@ -219,14 +217,15 @@ class UI(QMainWindow):
 
     def showBrowserPage(self, title, url, status_label=None, status=None, interceptor=None):
         self.preparePage(title, status_label, status)
+        self.center_box.show()
         self.web_engine_box.show()
         self.web_engine.setUrl(url)
         if interceptor is not None:
             self.web_engine.setInterceptor(interceptor)
-            QTimer.singleShot(50, self.loadRoundedMask)
 
     def showListPage(self, title, status_label=None, status=None):
         self.preparePage(title, status_label, status)
+        self.center_box.show()
         self.book_list_box.show()
         self.book_options_box.show()
 

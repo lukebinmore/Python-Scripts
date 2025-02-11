@@ -1,6 +1,7 @@
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtWebEngineWidgets import *
+from PyQt5.QtGui import *
 from globals import Globals as G
 
 
@@ -35,6 +36,20 @@ class BaseWidget:
         self.setParent(None)
         self.deleteLater()
 
+    def applyBorderRadius(self):
+        radius = int(G.STYLE_VARIABLES["border_radius"].replace("px", ""))
+        path = QPainterPath()
+        rect = QRectF(self.rect())
+        path.addRoundedRect(rect, radius, radius)
+        mask = QBitmap(self.size())
+        mask.fill(Qt.white)
+        painter = QPainter(mask)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setBrush(Qt.black)
+        painter.drawPath(path)
+        painter.end()
+        self.setMask(mask)
+
 
 class Container(QScrollArea, BaseWidget):
     def __init__(self, parent=None, name=None, vertical=True, hor_policy=None, ver_policy=None):
@@ -55,6 +70,10 @@ class Container(QScrollArea, BaseWidget):
         self.container.setLayout(self.layout)
         self.setWidget(self.container)
         self.setMargins(*G.DEFAULT_MARGINS)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.applyBorderRadius()
 
     def add(self, widget, *args, **kwargs):
         self.layout.addWidget(widget, *args, **kwargs)
@@ -82,11 +101,19 @@ class Label(QLabel, BaseWidget):
         BaseWidget.__init__(self, parent, name, hor_policy, ver_policy, warn)
         self.setWordWrap(True)
 
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.applyBorderRadius()
+
 
 class PushButton(QPushButton, BaseWidget):
     def __init__(self, parent=None, name=None, text=None, hor_policy=None, ver_policy=None, warn=False):
         QPushButton.__init__(self, text, parent)
         BaseWidget.__init__(self, parent, name, hor_policy, ver_policy, warn)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.applyBorderRadius()
 
     def click(self, slot):
         try:
@@ -105,6 +132,10 @@ class ProgressBar(QProgressBar, BaseWidget):
         self.setAlignment(Qt.AlignCenter)
         self.setValue(0)
 
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.applyBorderRadius()
+
     def config(self, value=None, range=None, text=None):
         if value is not None:
             self.setValue(value)
@@ -113,13 +144,11 @@ class ProgressBar(QProgressBar, BaseWidget):
             self.setRange(0, range)
 
         if text is not None:
-            self.setFormat(text)
+            self.setFormat(f"{text}: %p%")
 
-    def update(self, value=1):
-        if value:
-            self.setValue(self.value() + value)
-        else:
-            self.setValue(self.value() + 1)
+    def updateProgress(self, value, total):
+        if total > 0:
+            self.setValue(int((value / total) * 100))
 
 
 class WebEnginePage(QWebEnginePage):
@@ -128,8 +157,6 @@ class WebEnginePage(QWebEnginePage):
         self.intercept_callback = intercept_callback
 
     def acceptNavigationRequest(self, url, _type, is_main_frame):
-        print(_type)
-        print(url)
         if self.intercept_callback is not None:
             return self.intercept_callback(url)
 
@@ -146,6 +173,10 @@ class WebEngineView(QWebEngineView, BaseWidget):
 
         self.web_page = WebEnginePage(self)
         self.setPage(self.web_page)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.applyBorderRadius()
 
     def setInterceptor(self, interceptor):
         self.web_page.intercept_callback = interceptor
@@ -197,16 +228,6 @@ class WebEngineView(QWebEngineView, BaseWidget):
         self.context_menu_enabled = True if callback is not None else False
         self.image_select_callback = callback
 
-    def loaded(self, slot):
-        self.loadedDone()
-        self.loadFinished.connect(slot)
-
-    def loadedDone(self):
-        try:
-            self.loadFinished.disconnect()
-        except TypeError:
-            pass
-
     def setUrl(self, url):
         url = QUrl(url)
         super().setUrl(url)
@@ -215,6 +236,9 @@ class WebEngineView(QWebEngineView, BaseWidget):
         self.history().clear()
 
     def createWindow(self, _type):
+        if self.page().intercept_callback is None:
+            return self
+
         temp_view = QWebEngineView()
 
         def handle_new_url(url):
@@ -233,6 +257,16 @@ class WebEngineView(QWebEngineView, BaseWidget):
             pass
 
         self.page().profile().downloadRequested.connect(slot)
+
+    def loaded(self, slot):
+        self.loadedDone()
+        self.loadFinished.connect(slot)
+
+    def loadedDone(self):
+        try:
+            self.loadFinished.disconnect()
+        except TypeError:
+            pass
 
 
 """

@@ -14,12 +14,11 @@ class Book:
         self.file_name = None
         self.file_path = None
         self.oceanofpdf_url = None
+        self.book_list_item = None
+        self.book_lists = []
 
         if file_path is not None:
             self.getFileData(file_path)
-
-    def __str__(self):
-        return f"{self.title} By {self.author}"
 
     def __eq__(self, other):
         return isinstance(other, Book) and self.file_path == other.file_path
@@ -85,9 +84,10 @@ class Book:
         except Exception as e:
             print(f"Error saving metadata: {e}")
 
-    def deleteBook(self, list, delete_file=False):
-        if self in list:
-            list.remove(self)
+    def deleteBook(self, delete_file=False):
+        for list in self.book_lists:
+            if self in list:
+                list.remove(self)
 
         if delete_file:
             try:

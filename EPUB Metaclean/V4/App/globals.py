@@ -17,6 +17,7 @@ class Globals:
     PREFERRED = QSizePolicy.Preferred
     EXPANDING = QSizePolicy.Expanding
     MINIMUM = QSizePolicy.Minimum
+    FIXED = QSizePolicy.Fixed
 
     STYLE_VARIABLES = {
         "text_size": "12px",
