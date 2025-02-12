@@ -14,8 +14,9 @@ class Book:
         self.file_name = None
         self.file_path = None
         self.oceanofpdf_url = None
-        self.book_list_item = None
+        self.list_item = None
         self.book_lists = []
+        self.download = None
 
         if file_path is not None:
             self.getFileData(file_path)

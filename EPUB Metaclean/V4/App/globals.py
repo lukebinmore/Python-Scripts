@@ -7,7 +7,7 @@ class Globals:
     MINIMUM_SIZE = 460, 460
     STYLES_FILE = "styles.qss"
 
-    DEFAULT_MARGINS = 3, 3, 3, 3
+    DEFAULT_MARGINS = 6, 6, 6, 6
     OCEANOFPDF_URL = "https://oceanofpdf.com/"
     STRING_TO_REMOVE = "OceanofPDF.com"
     GOODREADS_URL = "https://www.goodreads.com/"
@@ -33,9 +33,11 @@ class Globals:
         "bg_alt_color": "#6f6f6f",
         "border": "2px solid #ffffff",
         "border_alt": "0 solid #ffffff",
-        "border_radius": "10px",
+        "border_radius": "15",
     }
 
     download_worker = None
     process_worker = None
     upload_worker = None
+
+    books = []

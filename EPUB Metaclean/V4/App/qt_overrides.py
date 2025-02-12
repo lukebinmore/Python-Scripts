@@ -51,29 +51,14 @@ class BaseWidget:
         self.setMask(mask)
 
 
-class Container(QScrollArea, BaseWidget):
+class Container(QFrame, BaseWidget):
     def __init__(self, parent=None, name=None, vertical=True, hor_policy=None, ver_policy=None):
-        QScrollArea.__init__(self, parent)
+        QFrame.__init__(self, parent)
         BaseWidget.__init__(self, parent, name, hor_policy, ver_policy)
-        self.setWidgetResizable(True)
 
-        self.container = QFrame(parent)
-        if vertical:
-            self.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-            self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-            self.layout = QVBoxLayout(self.container)
-        else:
-            self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-            self.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-            self.layout = QHBoxLayout(self.container)
-
-        self.container.setLayout(self.layout)
-        self.setWidget(self.container)
-        self.setMargins(*G.DEFAULT_MARGINS)
-
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        self.applyBorderRadius()
+        self.layout = QVBoxLayout(self) if vertical else QHBoxLayout(self)
+        self.setLayout(self.layout)
+        self.setMargins(0, 0, 0, 0)
 
     def add(self, widget, *args, **kwargs):
         self.layout.addWidget(widget, *args, **kwargs)
@@ -90,30 +75,50 @@ class Container(QScrollArea, BaseWidget):
         self.layout.setContentsMargins(left, top, right, bottom)
 
     def clear(self):
-        for child in self.container.findChildren(QWidget):
+        for child in self.findChildren(QWidget):
             child.setParent(None)
             child.deleteLater()
 
 
 class Label(QLabel, BaseWidget):
-    def __init__(self, parent=None, name="", text=None, hor_policy=None, ver_policy=None, warn=False):
+    def __init__(self, parent=None, name=None, text=None, hor_policy=None, ver_policy=None, warn=False):
         QLabel.__init__(self, text, parent)
         BaseWidget.__init__(self, parent, name, hor_policy, ver_policy, warn)
         self.setWordWrap(True)
 
+
+class ImageLabel(QLabel, BaseWidget):
+    def __init__(self, parent=None, name=None, hor_policy=None, ver_policy=None, warn=False):
+        QLabel.__init__(self, parent)
+        BaseWidget.__init__(self, parent, name, hor_policy, ver_policy, warn)
+        self.setWordWrap(True)
+        self.setAlignment(Qt.AlignCenter)
+        self.setScaledContents(False)
+
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        self.applyBorderRadius()
+        self.updateImageSize()
+
+    def setImage(self, image=None):
+        if image is not None:
+            byte_array = QByteArray(image)
+            pixmap = QPixmap()
+            pixmap.loadFromData(byte_array)
+            self.image_original = pixmap
+            self.updateImageSize()
+            return True
+        else:
+            return False
+
+    def updateImageSize(self):
+        if self.isVisible() and hasattr(self, "image_original"):
+            self.setPixmap(self.image_original.scaled(self.size(), Qt.KeepAspectRatio))
 
 
 class PushButton(QPushButton, BaseWidget):
     def __init__(self, parent=None, name=None, text=None, hor_policy=None, ver_policy=None, warn=False):
         QPushButton.__init__(self, text, parent)
         BaseWidget.__init__(self, parent, name, hor_policy, ver_policy, warn)
-
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        self.applyBorderRadius()
 
     def click(self, slot):
         try:
@@ -131,10 +136,6 @@ class ProgressBar(QProgressBar, BaseWidget):
         self.setTextVisible(True)
         self.setAlignment(Qt.AlignCenter)
         self.setValue(0)
-
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        self.applyBorderRadius()
 
     def config(self, value=None, range=None, text=None):
         if value is not None:
@@ -278,12 +279,18 @@ ui = QMainWindow()
 base = Container()
 ui.setCentralWidget(base)
 
-c1 = Container(base, "c1", vertical=False)
-c2 = Container(base, "c2", ver_policy=G.EXPANDING)
-c3 = Container(base, "c3")
+c1a = Container(base, vertical=False)
+c1b = ScrollContainer(base)
+c1c = Container(base, vertical=False)
 
-label1 = Label(c1, "label1", text="Testing")
-label2 = Label(c2, "label2", text="testing 2")
+b1a = PushButton(c1a, text="test 1")
+b1b = PushButton(c1a, text="Test 2")
+
+b2a = PushButton(c1b, text="test 1")
+b2b = PushButton(c1b, text="Test 2")
+
+b3a = PushButton(c1c, text="test 1")
+b3b = PushButton(c1c, text="Test 2")
 
 ui.show()
 
