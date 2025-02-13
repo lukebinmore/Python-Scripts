@@ -1,6 +1,7 @@
 import os
 import ebookmeta
 import epubfile
+from helper_functions import resizeCoverImage
 
 
 class Book:
@@ -39,7 +40,10 @@ class Book:
 
             self.cover_id = self.getCoverID(book)
             if self.cover_id is not None:
-                self.cover = book.read_file(self.cover_id)
+                self.cover = resizeCoverImage(book.read_file(self.cover_id))
+
+            if self.title is None:
+                self.title = self.file_name
 
         except Exception as e:
             print(f"Error loading metadata: {e}")

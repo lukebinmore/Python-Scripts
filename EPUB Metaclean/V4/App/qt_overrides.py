@@ -1,12 +1,25 @@
-from PyQt5.QtWidgets import *
-from PyQt5.QtCore import *
-from PyQt5.QtWebEngineWidgets import *
-from PyQt5.QtGui import *
-from globals import Globals as G
+from PyQt5.QtWidgets import (
+    QWidget,
+    QFrame,
+    QVBoxLayout,
+    QHBoxLayout,
+    QScrollArea,
+    QLabel,
+    QPushButton,
+    QGraphicsOpacityEffect,
+    QProgressBar,
+    QMenu,
+    QAction,
+    QApplication,
+)
+from PyQt5.QtCore import Qt, QRectF, QByteArray, QTimer, QSize, QBuffer, QIODevice, QUrl
+from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEnginePage, QWebEngineContextMenuData
+from PyQt5.QtGui import QPainterPath, QBitmap, QPainter, QPixmap, QIcon
+from globals import G
 
 
 class BaseWidget:
-    def __init__(self, parent=None, name=None, hor_policy=None, ver_policy=None, warn=False):
+    def __init__(self, parent=None, name=None, hor_policy=None, ver_policy=None, warn=False, insert_index=None):
         if not isinstance(self, QWidget):
             raise TypeError("BaseWidget must be used with QWidget subclasses")
 
@@ -21,7 +34,10 @@ class BaseWidget:
         self.setContentsMargins(0, 0, 0, 0)
 
         if isinstance(parent, Container):
-            parent.add(self)
+            if insert_index is None:
+                parent.add(self)
+            else:
+                parent.insert(insert_index, self)
 
     def warn(self, warn):
         self.setProperty("theme", "warn" if warn else None)
@@ -52,9 +68,9 @@ class BaseWidget:
 
 
 class Container(QFrame, BaseWidget):
-    def __init__(self, parent=None, name=None, vertical=True, hor_policy=None, ver_policy=None):
+    def __init__(self, parent=None, name=None, vertical=True, hor_policy=None, ver_policy=None, insert_index=None):
         QFrame.__init__(self, parent)
-        BaseWidget.__init__(self, parent, name, hor_policy, ver_policy)
+        BaseWidget.__init__(self, parent, name, hor_policy, ver_policy, insert_index=insert_index)
 
         self.layout = QVBoxLayout(self) if vertical else QHBoxLayout(self)
         self.setLayout(self.layout)
@@ -62,6 +78,9 @@ class Container(QFrame, BaseWidget):
 
     def add(self, widget, *args, **kwargs):
         self.layout.addWidget(widget, *args, **kwargs)
+
+    def insert(self, index, widget):
+        self.layout.insertWidget(index, widget)
 
     def setSpacing(self, spacing=0):
         self.layout.setSpacing(spacing)
@@ -76,6 +95,8 @@ class Container(QFrame, BaseWidget):
 
     def clear(self):
         for child in self.findChildren(QWidget):
+            if child.objectName() == "book_list_spacer":
+                continue
             child.setParent(None)
             child.deleteLater()
 
@@ -98,16 +119,16 @@ class Label(QLabel, BaseWidget):
 
 
 class ImageLabel(QLabel, BaseWidget):
-    def __init__(self, parent=None, name=None, hor_policy=None, ver_policy=None, warn=False):
+    def __init__(self, parent=None, name=None, hor_policy=None, ver_policy=None):
         QLabel.__init__(self, parent)
-        BaseWidget.__init__(self, parent, name, hor_policy, ver_policy, warn)
-        self.setWordWrap(True)
+        BaseWidget.__init__(self, parent, name, hor_policy, ver_policy)
         self.setAlignment(Qt.AlignCenter)
         self.setScaledContents(False)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self.updateImageSize()
+        self.applyBorderRadius()
 
     def setImage(self, image=None):
         if image is not None:
@@ -115,13 +136,15 @@ class ImageLabel(QLabel, BaseWidget):
             pixmap = QPixmap()
             pixmap.loadFromData(byte_array)
             self.image_original = pixmap
-            self.updateImageSize()
+            QTimer.singleShot(0, lambda: self.updateImageSize())
             return True
         else:
+            self.image_original = None
+            self.setPixmap(QPixmap())
             return False
 
     def updateImageSize(self):
-        if self.isVisible() and hasattr(self, "image_original"):
+        if hasattr(self, "image_original") and self.image_original is not None:
             self.setPixmap(self.image_original.scaled(self.size(), Qt.KeepAspectRatio))
 
 
@@ -139,6 +162,64 @@ class PushButton(QPushButton, BaseWidget):
         self.clicked.connect(slot)
 
 
+class ImageButton(QPushButton, BaseWidget):
+    def __init__(self, parent=None, name=None, hor_policy=None, ver_policy=None):
+        QPushButton.__init__(self, "", parent)
+        BaseWidget.__init__(self, parent, name, hor_policy, ver_policy)
+        self.setIconSize(self.size())
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.updateImageSize()
+        self.applyBorderRadius()
+
+    def setImage(self, image=None):
+        if image is not None:
+            byte_array = QByteArray(image)
+            pixmap = QPixmap()
+            pixmap.loadFromData(byte_array)
+            self.image_original = pixmap
+            QTimer.singleShot(0, self.updateImageSize)
+            return True
+        return False
+
+    def updateImageSize(self):
+        if self.isVisible() and hasattr(self, "image_original"):
+            scaled_pixmap = self.image_original.scaled(self.size(), Qt.KeepAspectRatio)
+            self.setIcon(QIcon(scaled_pixmap))
+            self.setIconSize(QSize(*G.THUMBNAIL_SIZE))
+            self.setFixedSize(QSize(*G.THUMBNAIL_SIZE))
+
+    def applyHoverEffect(self, opacity):
+        effect = QGraphicsOpacityEffect()
+        effect.setOpacity(opacity)
+        self.setGraphicsEffect(effect)
+
+    def enterEvent(self, event):
+        self.applyHoverEffect(0.7)
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        self.applyHoverEffect(1.0)
+        super().leaveEvent(event)
+
+    def mousePressEvent(self, event):
+        self.applyHoverEffect(0.5)
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        self.applyHoverEffect(0.7)
+        super().mouseReleaseEvent(event)
+
+    def click(self, slot):
+        try:
+            self.clicked.disconnect()
+        except TypeError:
+            pass
+
+        self.clicked.connect(slot)
+
+
 class ProgressBar(QProgressBar, BaseWidget):
     def __init__(self, parent=None, name=None, hor_policy=None, ver_policy=None):
         QProgressBar.__init__(self, parent)
@@ -146,6 +227,10 @@ class ProgressBar(QProgressBar, BaseWidget):
         self.setTextVisible(True)
         self.setAlignment(Qt.AlignCenter)
         self.setValue(0)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.applyBorderRadius()
 
     def config(self, value=None, range=None, text=None):
         if value is not None:
@@ -278,23 +363,3 @@ class WebEngineView(QWebEngineView, BaseWidget):
             self.loadFinished.disconnect()
         except TypeError:
             pass
-
-
-"""
-import sys
-
-v = G
-app = QApplication(sys.argv)
-ui = QMainWindow()
-base = Container()
-base.setStyleSheet("background-color: blue;")
-ui.setCentralWidget(base)
-
-scroll = ScrollContainer(base)
-
-scroll.setStyleSheet("background-color: orange;")
-
-ui.show()
-
-sys.exit(app.exec())
-"""

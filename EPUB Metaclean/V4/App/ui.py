@@ -1,26 +1,37 @@
-from PyQt5.QtWidgets import *
-from PyQt5.QtGui import *
-from qt_overrides import *
+from PyQt5.QtCore import QFileSystemWatcher, Qt, QTimer
+from PyQt5.QtWidgets import QMainWindow, QApplication
+from PyQt5.QtGui import QIcon
+from qt_overrides import (
+    Container,
+    ImageButton,
+    Label,
+    ProgressBar,
+    PushButton,
+    WebEngineView,
+    ScrollContainer,
+    ImageLabel,
+)
 from helper_functions import *
-from globals import Globals as G
+from globals import G
 
 
 class UI(QMainWindow):
     class BookItem(Container):
-        def __init__(self, ui, book):
+        def __init__(self, ui, book, insert_index):
             super().__init__(
                 ui.book_list_box.container,
                 name="list_item",
                 vertical=False,
-                ver_policy=QSizePolicy.MinimumExpanding,
+                insert_index=insert_index,
             )
+            self.setMargins(*G.DEFAULT_MARGINS)
             self.ui = ui
             self.book = book
 
-            self.cover = ImageLabel(self)
-            self.cover.hide()
+            self.cover = ImageButton(self, "list_item_cover")
+            self.cover.click(lambda: ui.confirmAction(title=self.book.title, image=self.book.cover, info=True))
 
-            self.details = Container(self, "book_list_item_details", hor_policy=G.EXPANDING)
+            self.details = Container(self, hor_policy=G.EXPANDING)
             self.details.setSpacing(0)
             self.title = Label(self.details)
             self.author = Label(self.details)
@@ -36,14 +47,16 @@ class UI(QMainWindow):
 
         def updateData(self):
             self.cover.setImage(self.book.cover)
-            self.title.setText(self.book.title)
-            self.author.setText(f"Author: {self.book.author}")
-            self.series.setText(f"Series: {self.book.series}")
-            self.series_index.setText(f"Book: #{self.book.series_index}")
+            self.cover.setVisible(bool(self.book.cover))
+            self.title.setText(self.book.title or self.book.file_name)
+            self.author.setText(f"Author: {self.book.author}" if self.book.author is not None else None)
+            self.series.setText(f"Series: {self.book.series}" if self.book.series is not None else None)
+            self.series_index.setText(
+                f"Book: #{self.book.series_index}" if self.book.series_index is not None else None
+            )
 
-            self.author.setVisible(bool(self.book.author))
-            self.series.setVisible(bool(self.book.series))
-            self.series_index.setVisible(bool(self.book.series_index))
+            if self.progress_bar.value() == self.progress_bar.maximum():
+                self.progress_bar.hide()
 
         def deleteBook(self):
             cover_exists = False if self.book.cover is None else True
@@ -51,8 +64,8 @@ class UI(QMainWindow):
             self.ui.confirmAction(
                 "Deleting Book",
                 "Would you like to delete the source file?",
-                lambda: self.book.deleteBook(True),
-                lambda: self.book.deleteBook(False),
+                lambda: (self.ui.showContent(), self.book.deleteBook(True)),
+                lambda: (self.ui.showContent(), self.book.deleteBook(False)),
                 warn_text=True,
                 warn_true=True,
                 image=resizeCoverImage(self.book.cover) if cover_exists else None,
@@ -123,14 +136,16 @@ class UI(QMainWindow):
         self.web_engine.hide()
         self.book_list_box = ScrollContainer(self.center_box, "book_list_box")
         self.book_list_box.container.setSpacing(5)
+        self.book_list_box.setMinimumWidth(G.MINIMUM_SIZE[0])
+        self.book_list_spacer = Label(self.book_list_box.container, "book_list_spacer", ver_policy=G.EXPANDING)
 
-        self.continue_btn = PushButton(self.content, "continue_btn")
-        self.continue_btn.hide()
+        self.done_btn = PushButton(self.content, "done_btn")
+        self.done_btn.hide()
 
         self.book_options_box = Container(self.content, "book_options_box", False)
         self.select_downloads_btn = PushButton(self.book_options_box, text="Select Downloadeds")
         self.select_others_btn = PushButton(self.book_options_box, text="Select Other Books")
-        self.clear_all_btn = PushButton(self.book_options_box, text="Clear All")
+        self.clear_all_btn = PushButton(self.book_options_box, text="Clear All", warn=True)
 
         self.nav_btns_box = Container(self.content, "nav_btns_box", False)
         self.back_btn = PushButton(self.nav_btns_box, text="Go Back")
@@ -141,7 +156,7 @@ class UI(QMainWindow):
 
         self.status_box = Container(self.content, "status_box", False)
         self.status_label = Label(self.status_box, "status_label", "Status: ")
-        self.status = Label(self.status_box, "status", hor_policy=G.EXPANDING)
+        self.status = Label(self.status_box, "status", "Waiting For User Input...", hor_policy=G.EXPANDING)
 
     def initNoticePage(self):
         self.notice = Container(self.base, "notice", ver_policy=G.EXPANDING)
@@ -159,6 +174,7 @@ class UI(QMainWindow):
 
     def showContent(self):
         self.content.show()
+        self.updateUIParts()
         self.notice.hide()
 
     def showNotice(self):
@@ -168,7 +184,7 @@ class UI(QMainWindow):
     def confirmAction(
         self,
         title,
-        text,
+        text=None,
         action_true=None,
         action_false=None,
         warn_text=False,
@@ -196,18 +212,71 @@ class UI(QMainWindow):
 
         self.loadStyleSheet()
 
+    def updateUIParts(self):
+        QTimer.singleShot(
+            50,
+            lambda: (
+                updateBookList(),
+                updateSelectDownloadsBtn(),
+                updateListSpecificBtns(),
+                updateTaskBtns(),
+                updateDoneBtn(),
+                updateTaskLabel(),
+            ),
+        )
 
-"""
-import sys
+        def updateBookList():
+            self.book_list_box.hide()
+            if G.download_worker and not G.books:
+                return
+            self.book_list_box.show()
 
-v = G
-app = QApplication(sys.argv)
-ui = UI()
-ui.task_btns_box.hide()
-ui.status_box.hide()
-ui.book_list_box.show()
-ui.web_engine.show()
+        def updateSelectDownloadsBtn():
+            self.select_downloads_btn.hide()
+            files = [f for f in os.listdir(os.getcwd()) if f.endswith(".epub")]
+            if not files:
+                return
+            self.select_downloads_btn.show()
 
-ui.book_list_box.setStyleSheet("background-color: orange;")
-sys.exit(app.exec())
-"""
+        def updateListSpecificBtns():
+            self.process_task_btn.hide()
+            self.upload_task_btn.hide()
+            self.clear_all_btn.hide()
+            if not G.books:
+                return
+            self.process_task_btn.show()
+            self.upload_task_btn.show()
+            self.clear_all_btn.show()
+
+        def updateTaskBtns():
+            self.task_btns_box.hide()
+            self.book_options_box.hide()
+            if G.download_worker or G.process_worker or G.upload_worker:
+                return
+            self.task_btns_box.show()
+            self.book_options_box.show()
+
+        def updateDoneBtn():
+            self.done_btn.hide()
+            if not G.books:
+                return
+            if any(book.download is None for book in G.books):
+                return
+            if any(book.download and not getattr(book.download, "finished", False) for book in G.books):
+                return
+            if not G.download_worker and not G.process_worker and not G.upload_worker:
+                return
+            self.done_btn.show()
+
+        def updateTaskLabel():
+            self.task_label_box.hide()
+            if G.download_worker is not None:
+                self.task_label.setText("Downloading New Books")
+            if G.process_worker is not None:
+                self.task_label.setText("Processing Books")
+            if G.upload_worker is not None:
+                self.task_label.setText("Uploading Books")
+
+            if not G.download_worker and not G.process_worker and not G.upload_worker:
+                return
+            self.task_label_box.show()

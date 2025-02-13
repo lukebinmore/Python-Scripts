@@ -1,25 +1,22 @@
 import sys
-from globals import Globals as G
+from globals import G
 from ui import UI
 from book_class import Book
 from helper_functions import *
 from qt_overrides import WebEngineView
-from PyQt5.QtWidgets import QApplication, QMainWindow, QFileDialog
-from PyQt5.QtCore import QTimer, pyqtSignal
-
-from qt_overrides import *
+from PyQt5.QtWidgets import QApplication, QFileDialog, QMainWindow
+from PyQt5.QtCore import QTimer
 
 
 class Downloads:
     def __init__(self):
-        self.download_queue = 0
-        self.download_count = 0
         self.download_map = {}
         self.locked = False
 
         self.windows = []
 
         self.setupUI()
+        ui.updateUIParts()
 
     def setupUI(self):
         ui.restart_btn.click(
@@ -42,14 +39,8 @@ class Downloads:
             )
         )
 
-        ui.continue_btn.setText("Done")
-        ui.continue_btn.click(self.close)
-
-        ui.task_btns_box.hide()
-        ui.book_options_box.hide()
-
-        ui.task_label_box.show()
-        ui.task_label.setText("Downloading New Books")
+        ui.done_btn.setText("Done")
+        ui.done_btn.click(lambda: (ui.done_btn.hide(), self.close()))
 
         ui.web_engine.show()
         ui.web_engine.setInterceptor(self.urlInterceptor)
@@ -57,8 +48,6 @@ class Downloads:
 
     def cleanUp(self):
         ui.showContent()
-        ui.task_label_box.hide()
-        ui.book_options_box.show()
         ui.hidden_engines_box.clear()
         ui.web_engine.setInterceptor(None)
 
@@ -68,6 +57,7 @@ class Downloads:
 
     def close(self):
         self.cleanUp()
+        ui.web_engine.hide()
         QTimer.singleShot(0, close)
 
     def urlInterceptor(self, url):
@@ -85,7 +75,7 @@ class Downloads:
             ui.status.setText("EPUB Not Available! - Waiting For User Input...")
             return False
 
-        if checkBookExists(v.books, "oceanofpdf_url", url):
+        if checkBookExists(G.books, "oceanofpdf_url", url):
             ui.status.setText("Already Downloaded! - Waiting For User Input...")
             return False
 
@@ -95,68 +85,131 @@ class Downloads:
 
     def queueDownload(self, url):
         ui.status.setText("EPUB Available, Fetching...")
-        ui.continue_btn.hide()
+        book = Book()
+        book.oceanofpdf_url = url
+        book.title = (
+            url.lower()
+            .split("/")[-2]
+            .replace("pdf-", "")
+            .replace("epub-", "")
+            .replace("download", "")
+            .replace("-", " ")
+            .title()
+        )
+        insert_index = G.addBook(book)
+        book.list_item = ui.BookItem(ui, book, insert_index)
+        book.list_item.progress_bar.config(text="Downloading")
+        book.list_item.progress_bar.show()
+        download_engine = WebEngineView(ui.hidden_engines_box)
+
+        new_window = QMainWindow()
+        new_window.setGeometry(100, 100, 600, 600)
+        new_window.setCentralWidget(download_engine)
+        self.windows.append(new_window)
+        new_window.show()
+
+        self.download_map[download_engine] = book
+        download_engine.downloadReq(self.handleDownload)
+        download_engine.loaded(lambda: self.openBookPage(download_engine))
+        download_engine.setUrl(url)
+        ui.updateUIParts()
+
+    def openBookPage(self, download_engine):
+        js_code = """
+        var element = document.querySelector("input[type='image'][src^='https://media.oceanofpdf.com/epub-button']");
+        if (element) {
+            element.click();
+        }
+        """
+        download_engine.page().runJavaScript(js_code)
+        self.locked = False
+
+    def handleDownload(self, download):
+        ui.status.setText("Waiting For User Input...")
+        file_name = os.path.basename(download.suggestedFileName().replace("/OceanofPDF.com/", ""))
+        file_path = os.path.join(os.getcwd(), file_name)
+        download.setDownloadFileName(file_path)
+        download.accept()
+        book = self.download_map.get(download.page().view())
+        book.download = download
+        book.file_name = file_name
+        book.file_path = file_path
+        book.download.downloadProgress.connect(book.list_item.progress_bar.updateProgress)
+        book.download.finished.connect(lambda: self.downloadComplete(download))
+        book.list_item.updateData()
+        ui.updateUIParts()
+
+    def downloadComplete(self, download):
+        download_engine = download.page().view()
+        book = self.download_map.pop(download_engine, None)
+        if book:
+            book.getFileData(book.file_path)
+            book.list_item.updateData()
+            ui.updateUIParts()
+        download_engine.delete()
 
 
 def close():
-    v.download_worker = None
-    v.process_worker = None
-    v.upload_worker = None
+    G.download_worker = None
+    G.process_worker = None
+    G.upload_worker = None
 
-    ui.book_list_box.show()
-    ui.web_engine.hide()
-    ui.task_btns_box.show()
+    ui.updateUIParts()
 
 
 def getSourceFiles():
     files = [f for f in os.listdir(os.getcwd()) if f.endswith(".epub")]
 
     for file in files:
-        book = Book()
-        book.getFileData(os.path.join(os.getcwd(), file))
-        if book not in v.books:
-            book.list_item = ui.BookItem(ui, book)
-            v.books.append(book)
+        book = Book(file)
+        book.download = False
+        if book not in G.books:
+            insert_index = G.addBook(book)
+            book.list_item = ui.BookItem(ui, book, insert_index)
+
+    ui.updateUIParts()
 
 
 def getUserFiles():
     files, _ = QFileDialog.getOpenFileNames(None, "Select Files", "", "EPUB Files (*.epub)")
 
     for file in files:
-        book = Book()
-        book.getFileData(file)
-        if book not in v.books:
-            book.list_item = ui.BookItem(ui, book)
-            ui.book_list_box.add(book.list_item)
-            v.books.append(book)
+        book = Book(file)
+        book.download = False
+        if book not in G.books:
+            insert_index = G.addBook(book)
+            book.list_item = ui.BookItem(ui, book, insert_index)
+
+    ui.updateUIParts()
 
 
 def clearAllFiles():
-    v.books = []
+    G.books = []
+    ui.book_list_box.container.clear()
 
 
 def startDownloadBooks():
-    v.download_worker = Downloads()
+    close()
+    G.download_worker = Downloads()
 
 
-def startProcessBooks(books=False):
-    v.download_worker = None
-    # v.process_worker = Process(books)
+def startProcessBooks():
+    close()
+    # G.process_worker = Process()
 
 
-def startUploadBooks(books=False):
-    v.upload_worker = None
-    # v.upload_worker = Upload(books)
+def startUploadBooks():
+    close()
+    # G.upload_worker = Upload()
 
 
 if __name__ == "__main__":
-    v = G()
     app = QApplication(sys.argv)
     ui = UI()
 
-    v.download_worker = None
-    v.process_worker = None
-    v.upload_worker = None
+    G.download_worker = None
+    G.process_worker = None
+    G.upload_worker = None
 
     ui.download_task_btn.click(startDownloadBooks)
     ui.process_task_btn.click(startProcessBooks)
@@ -164,6 +217,17 @@ if __name__ == "__main__":
 
     ui.select_downloads_btn.click(getSourceFiles)
     ui.select_others_btn.click(getUserFiles)
-    ui.clear_all_btn.click(clearAllFiles)
+    ui.clear_all_btn.click(
+        lambda: ui.confirmAction(
+            "Clearing Books",
+            "Are you sure you would like to clear all opened books?",
+            lambda: (ui.showContent(), ui.updateUIParts(), clearAllFiles()),
+            lambda: (ui.showContent(), ui.updateUIParts()),
+            warn_text=True,
+            warn_true=True,
+        )
+    )
+
+    ui.updateUIParts()
 
     sys.exit(app.exec())

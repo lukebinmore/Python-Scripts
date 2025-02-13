@@ -6,11 +6,7 @@ QWidget {
     font-size: {text_size};
 }
 
-QFrame {
-    border: {border_alt};
-}
-
-QLabel, #base, #nav_btns_box > QFrame {
+QFrame, QLabel, #base, #nav_btns_box > QFrame {
     border: {border_alt};
 }
 
@@ -43,4 +39,16 @@ QPushButton[theme="warn"]:hover {
 
 QPushButton[theme="warn"]:pressed {
     background-color: {warn_dark_color};
+}
+
+#list_item {
+    background-color: {bg_alt_color};
+}
+
+#list_item > QFrame, #list_item > QFrame > * {
+    background-color: transparent;
+}
+
+#list_item:hover {
+    background-color: {bg_color};
 }

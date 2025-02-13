@@ -2,42 +2,54 @@ from PyQt5.QtWidgets import QSizePolicy
 
 
 class Globals:
-    TITLE = "EPUB Metaclean V4"
-    ICON = "icon.ico"
-    MINIMUM_SIZE = 460, 460
-    STYLES_FILE = "styles.qss"
+    def __init__(self):
+        self.TITLE = "EPUB Metaclean V4"
+        self.ICON = "icon.ico"
+        self.MINIMUM_SIZE = 460, 460
+        self.STYLES_FILE = "styles.qss"
 
-    DEFAULT_MARGINS = 6, 6, 6, 6
-    OCEANOFPDF_URL = "https://oceanofpdf.com/"
-    STRING_TO_REMOVE = "OceanofPDF.com"
-    GOODREADS_URL = "https://www.goodreads.com/"
-    IMAGE_PROVIDER_URL = "https://www.google.com/search?tbm=isch&q="
-    PLAY_BOOKS = "https://play.google.com/books"
+        self.DEFAULT_MARGINS = 6, 6, 6, 6
+        self.THUMBNAIL_SIZE = 80, 128
+        self.OCEANOFPDF_URL = "https://oceanofpdf.com/"
+        self.STRING_TO_REMOVE = "OceanofPDF.com"
+        self.GOODREADS_URL = "https://www.goodreads.com/"
+        self.IMAGE_PROVIDER_URL = "https://www.google.com/search?tbm=isch&q="
+        self.PLAY_BOOKS = "https://play.google.com/books"
 
-    PREFERRED = QSizePolicy.Preferred
-    EXPANDING = QSizePolicy.Expanding
-    MINIMUM = QSizePolicy.Minimum
-    FIXED = QSizePolicy.Fixed
+        self.PREFERRED = QSizePolicy.Preferred
+        self.EXPANDING = QSizePolicy.Expanding
+        self.MINIMUM = QSizePolicy.Minimum
+        self.FIXED = QSizePolicy.Fixed
+        self.MINIMUMEXPANDING = QSizePolicy.MinimumExpanding
 
-    STYLE_VARIABLES = {
-        "text_size": "12px",
-        "btn_text_color": "#000000",
-        "btn_text_alt_color": "#ffffff",
-        "primary_color": "#4CBB17",
-        "primary_dark_color": "#358310",
-        "secondary_color": "#D8D4D5",
-        "secondary_dark_color": "#9b9193",
-        "warn_color": "#D32926",
-        "warn_dark_color": "#941d1b",
-        "bg_color": "#323232",
-        "bg_alt_color": "#6f6f6f",
-        "border": "2px solid #ffffff",
-        "border_alt": "0 solid #ffffff",
-        "border_radius": "15",
-    }
+        self.STYLE_VARIABLES = {
+            "text_size": "12px",
+            "btn_text_color": "#000000",
+            "btn_text_alt_color": "#ffffff",
+            "primary_color": "#4CBB17",
+            "primary_dark_color": "#358310",
+            "secondary_color": "#D8D4D5",
+            "secondary_dark_color": "#9b9193",
+            "warn_color": "#D32926",
+            "warn_dark_color": "#941d1b",
+            "bg_color": "#323232",
+            "bg_alt_color": "#6f6f6f",
+            "border": "2px solid #ffffff",
+            "border_alt": "0 solid #ffffff",
+            "border_radius": "9",
+        }
 
-    download_worker = None
-    process_worker = None
-    upload_worker = None
+        self.download_worker = None
+        self.process_worker = None
+        self.upload_worker = None
 
-    books = []
+        self.books = []
+
+    def addBook(self, book):
+        book.book_lists.append(self.books)
+        self.books.append(book)
+        self.books.sort(key=lambda b: b.title.lower() if b.title else "")
+        return self.books.index(book)
+
+
+G = Globals()
