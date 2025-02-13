@@ -9,12 +9,11 @@ class UI(QMainWindow):
     class BookItem(Container):
         def __init__(self, ui, book):
             super().__init__(
-                ui.book_list_box,
+                ui.book_list_box.container,
                 name="list_item",
                 vertical=False,
                 ver_policy=QSizePolicy.MinimumExpanding,
             )
-
             self.ui = ui
             self.book = book
 
@@ -123,7 +122,7 @@ class UI(QMainWindow):
         self.web_engine = WebEngineView(self.center_box, "web_engine", hor_policy=G.EXPANDING)
         self.web_engine.hide()
         self.book_list_box = ScrollContainer(self.center_box, "book_list_box")
-        self.book_list_box.setSpacing(5)
+        self.book_list_box.container.setSpacing(5)
 
         self.continue_btn = PushButton(self.content, "continue_btn")
         self.continue_btn.hide()
@@ -196,3 +195,19 @@ class UI(QMainWindow):
         self.false_btn.click(lambda: action_false())
 
         self.loadStyleSheet()
+
+
+"""
+import sys
+
+v = G
+app = QApplication(sys.argv)
+ui = UI()
+ui.task_btns_box.hide()
+ui.status_box.hide()
+ui.book_list_box.show()
+ui.web_engine.show()
+
+ui.book_list_box.setStyleSheet("background-color: orange;")
+sys.exit(app.exec())
+"""

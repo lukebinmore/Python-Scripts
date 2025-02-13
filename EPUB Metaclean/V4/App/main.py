@@ -7,6 +7,8 @@ from qt_overrides import WebEngineView
 from PyQt5.QtWidgets import QApplication, QMainWindow, QFileDialog
 from PyQt5.QtCore import QTimer, pyqtSignal
 
+from qt_overrides import *
+
 
 class Downloads:
     def __init__(self):
@@ -116,8 +118,6 @@ def getSourceFiles():
             book.list_item = ui.BookItem(ui, book)
             v.books.append(book)
 
-    ui.book_list_box.adjustSize()
-
 
 def getUserFiles():
     files, _ = QFileDialog.getOpenFileNames(None, "Select Files", "", "EPUB Files (*.epub)")
@@ -164,7 +164,6 @@ if __name__ == "__main__":
 
     ui.select_downloads_btn.click(getSourceFiles)
     ui.select_others_btn.click(getUserFiles)
-
-    ui.task_btns_box.show()
+    ui.clear_all_btn.click(clearAllFiles)
 
     sys.exit(app.exec())

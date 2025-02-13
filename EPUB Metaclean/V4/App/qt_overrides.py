@@ -80,6 +80,16 @@ class Container(QFrame, BaseWidget):
             child.deleteLater()
 
 
+class ScrollContainer(QScrollArea, BaseWidget):
+    def __init__(self, parent=None, name=None, vertical=True, hor_policy=None, ver_policy=None):
+        QScrollArea.__init__(self, parent)
+        BaseWidget.__init__(self, parent, hor_policy, ver_policy)
+
+        self.container = Container(self, name, vertical, hor_policy, ver_policy)
+        self.setWidget(self.container)
+        self.setWidgetResizable(True)
+
+
 class Label(QLabel, BaseWidget):
     def __init__(self, parent=None, name=None, text=None, hor_policy=None, ver_policy=None, warn=False):
         QLabel.__init__(self, text, parent)
@@ -277,20 +287,12 @@ v = G
 app = QApplication(sys.argv)
 ui = QMainWindow()
 base = Container()
+base.setStyleSheet("background-color: blue;")
 ui.setCentralWidget(base)
 
-c1a = Container(base, vertical=False)
-c1b = ScrollContainer(base)
-c1c = Container(base, vertical=False)
+scroll = ScrollContainer(base)
 
-b1a = PushButton(c1a, text="test 1")
-b1b = PushButton(c1a, text="Test 2")
-
-b2a = PushButton(c1b, text="test 1")
-b2b = PushButton(c1b, text="Test 2")
-
-b3a = PushButton(c1c, text="test 1")
-b3b = PushButton(c1c, text="Test 2")
+scroll.setStyleSheet("background-color: orange;")
 
 ui.show()
 

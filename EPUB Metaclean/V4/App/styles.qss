@@ -44,7 +44,3 @@ QPushButton[theme="warn"]:hover {
 QPushButton[theme="warn"]:pressed {
     background-color: {warn_dark_color};
 }
-
-#book_list_box {
-    background-color: orange;
-}
