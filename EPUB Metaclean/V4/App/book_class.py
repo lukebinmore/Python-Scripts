@@ -94,7 +94,7 @@ class Book:
             if self in list:
                 list.remove(self)
 
-        if delete_file:
+        if delete_file and self.file_path is not None:
             try:
                 os.remove(self.file_path)
             except FileNotFoundError:

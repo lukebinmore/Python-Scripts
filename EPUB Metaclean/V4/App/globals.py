@@ -36,7 +36,7 @@ class Globals:
             "bg_alt_color": "#6f6f6f",
             "border": "2px solid #ffffff",
             "border_alt": "0 solid #ffffff",
-            "border_radius": "9",
+            "border_radius": "8",
         }
 
         self.download_worker = None

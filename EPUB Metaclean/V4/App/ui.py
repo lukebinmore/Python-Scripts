@@ -262,7 +262,7 @@ class UI(QMainWindow):
                 return
             if any(book.download is None for book in G.books):
                 return
-            if any(book.download and not getattr(book.download, "finished", False) for book in G.books):
+            if any(not book.download.isFinished() for book in G.books):
                 return
             if not G.download_worker and not G.process_worker and not G.upload_worker:
                 return

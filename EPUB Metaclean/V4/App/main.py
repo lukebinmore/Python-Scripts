@@ -13,7 +13,7 @@ class Downloads:
         self.download_map = {}
         self.locked = False
 
-        self.windows = []
+        self.windows = {}
 
         self.setupUI()
         ui.updateUIParts()
@@ -105,7 +105,7 @@ class Downloads:
         new_window = QMainWindow()
         new_window.setGeometry(100, 100, 600, 600)
         new_window.setCentralWidget(download_engine)
-        self.windows.append(new_window)
+        self.windows[download_engine] = new_window
         new_window.show()
 
         self.download_map[download_engine] = book
@@ -116,10 +116,16 @@ class Downloads:
 
     def openBookPage(self, download_engine):
         js_code = """
-        var element = document.querySelector("input[type='image'][src^='https://media.oceanofpdf.com/epub-button']");
-        if (element) {
-            element.click();
-        }
+        setTimeout(function() {
+            try {
+                var epubButton = document.querySelector("input[type='image'][src^='https://media.oceanofpdf.com/epub-button']");
+                if (epubButton) {
+                    epubButton.click();
+                }
+            } catch (error) {
+                console.error("JavaScript Error:", error);
+            }
+        }, 500);
         """
         download_engine.page().runJavaScript(js_code)
         self.locked = False
@@ -146,7 +152,8 @@ class Downloads:
             book.getFileData(book.file_path)
             book.list_item.updateData()
             ui.updateUIParts()
-        download_engine.delete()
+        del self.windows[download_engine]
+        # download_engine.delete()
 
 
 def close():
