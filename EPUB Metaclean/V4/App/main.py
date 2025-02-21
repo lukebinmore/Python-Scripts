@@ -10,7 +10,6 @@ from PyQt5.QtCore import QTimer
 
 class Downloads:
     def __init__(self):
-        self.download_map = {}
         self.locked = False
 
         self.windows = {}
@@ -100,21 +99,20 @@ class Downloads:
         book.list_item = ui.BookItem(ui, book, insert_index)
         book.list_item.progress_bar.config(text="Downloading")
         book.list_item.progress_bar.show()
-        download_engine = WebEngineView(ui.hidden_engines_box)
+        book.download_engine = WebEngineView(ui.hidden_engines_box)
 
         new_window = QMainWindow()
         new_window.setGeometry(100, 100, 600, 600)
-        new_window.setCentralWidget(download_engine)
-        self.windows[download_engine] = new_window
+        new_window.setCentralWidget(book.download_engine)
+        self.windows[book.download_engine] = new_window
         new_window.show()
 
-        self.download_map[download_engine] = book
-        download_engine.downloadReq(self.handleDownload)
-        download_engine.loaded(lambda: self.openBookPage(download_engine))
-        download_engine.setUrl(url)
+        book.download_engine.downloadReq(self.handleDownload)
+        book.download_engine.loaded(lambda: self.openBookPage(book))
+        book.download_engine.setUrl(url)
         ui.updateUIParts()
 
-    def openBookPage(self, download_engine):
+    def openBookPage(self, book):
         js_code = """
         setTimeout(function() {
             try {
@@ -127,7 +125,7 @@ class Downloads:
             }
         }, 500);
         """
-        download_engine.page().runJavaScript(js_code)
+        book.download_engine.page().runJavaScript(js_code)
         self.locked = False
 
     def handleDownload(self, download):
@@ -136,24 +134,23 @@ class Downloads:
         file_path = os.path.join(os.getcwd(), file_name)
         download.setDownloadFileName(file_path)
         download.accept()
-        book = self.download_map.get(download.page().view())
+        book = next((b for b in G.books if b.download_engine == download.page().view()), None)
         book.download = download
         book.file_name = file_name
         book.file_path = file_path
         book.download.downloadProgress.connect(book.list_item.progress_bar.updateProgress)
-        book.download.finished.connect(lambda: self.downloadComplete(download))
+        book.download.finished.connect(lambda: self.downloadComplete(book))
         book.list_item.updateData()
         ui.updateUIParts()
 
-    def downloadComplete(self, download):
-        download_engine = download.page().view()
-        book = self.download_map.pop(download_engine, None)
+    def downloadComplete(self, book):
         if book:
             book.getFileData(book.file_path)
             book.list_item.updateData()
             ui.updateUIParts()
-        del self.windows[download_engine]
+        del self.windows[book.download_engine]
         # download_engine.delete()
+        book.download_engine = None
 
 
 def close():
@@ -228,8 +225,8 @@ if __name__ == "__main__":
         lambda: ui.confirmAction(
             "Clearing Books",
             "Are you sure you would like to clear all opened books?",
-            lambda: (ui.showContent(), ui.updateUIParts(), clearAllFiles()),
-            lambda: (ui.showContent(), ui.updateUIParts()),
+            lambda: (ui.updateUIParts(), clearAllFiles()),
+            lambda: ui.updateUIParts(),
             warn_text=True,
             warn_true=True,
         )

@@ -60,18 +60,15 @@ class UI(QMainWindow):
 
         def deleteBook(self):
             cover_exists = False if self.book.cover is None else True
-
             self.ui.confirmAction(
                 "Deleting Book",
                 "Would you like to delete the source file?",
-                lambda: (self.ui.showContent(), self.book.deleteBook(True)),
-                lambda: (self.ui.showContent(), self.book.deleteBook(False)),
+                lambda: self.book.deleteBook(True),
+                lambda: self.book.deleteBook(False),
                 warn_text=True,
                 warn_true=True,
                 image=resizeCoverImage(self.book.cover) if cover_exists else None,
             )
-
-            self.delete()
 
     def __init__(self):
         super().__init__()
@@ -201,14 +198,15 @@ class UI(QMainWindow):
         self.notice_text.setText(text)
         self.notice_text.warn(warn_text)
 
-        action_true = action_true or self.showContent
-        action_false = action_false or self.showContent
+        action_true = action_true if action_true else print
+        action_false = action_false if action_false else print
+
         self.true_btn.setText("OK" if info else "YES")
         self.false_btn.setVisible(not info)
         self.true_btn.warn(warn_true)
         self.false_btn.warn(warn_false)
-        self.true_btn.click(lambda: action_true())
-        self.false_btn.click(lambda: action_false())
+        self.true_btn.click(lambda: (action_true(), self.showContent()))
+        self.false_btn.click(lambda: (action_false(), self.showContent()))
 
         self.loadStyleSheet()
 
@@ -262,7 +260,7 @@ class UI(QMainWindow):
                 return
             if any(book.download is None for book in G.books):
                 return
-            if any(not book.download.isFinished() for book in G.books):
+            if any(book.download and not book.download.isFinished() for book in G.books):
                 return
             if not G.download_worker and not G.process_worker and not G.upload_worker:
                 return

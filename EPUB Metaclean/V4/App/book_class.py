@@ -2,6 +2,7 @@ import os
 import ebookmeta
 import epubfile
 from helper_functions import resizeCoverImage
+from PyQt5.QtWebEngineWidgets import QWebEngineDownloadItem
 
 
 class Book:
@@ -18,6 +19,7 @@ class Book:
         self.list_item = None
         self.book_lists = []
         self.download = None
+        self.download_engine = None
 
         if file_path is not None:
             self.getFileData(file_path)
@@ -94,8 +96,17 @@ class Book:
             if self in list:
                 list.remove(self)
 
+        if self.download_engine is not None:
+            self.download_engine.delete()
+
+        if self.download is not None:
+            self.download.cancel()
+
         if delete_file and self.file_path is not None:
             try:
                 os.remove(self.file_path)
             except FileNotFoundError:
                 pass
+
+        if self.list_item is not None:
+            self.list_item.delete()
