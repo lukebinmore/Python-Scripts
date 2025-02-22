@@ -4,7 +4,7 @@ from ui import UI
 from book_class import Book
 from helper_functions import *
 from qt_overrides import WebEngineView
-from PyQt5.QtWidgets import QApplication, QFileDialog, QMainWindow
+from PyQt5.QtWidgets import QApplication, QFileDialog
 from PyQt5.QtCore import QTimer
 
 
