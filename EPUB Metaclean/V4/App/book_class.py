@@ -3,6 +3,10 @@ import ebookmeta
 import epubfile
 from helper_functions import resizeCoverImage
 from PyQt5.QtWebEngineWidgets import QWebEngineDownloadItem
+from bs4 import XMLParsedAsHTMLWarning
+import warnings
+
+warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 
 
 class Book:

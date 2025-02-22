@@ -9,10 +9,11 @@ from PyQt5.QtCore import QTimer
 
 
 class Downloads:
-    def __init__(self):
-        self.locked = False
+    MAX_DOWNLOADS = 3
 
-        self.windows = {}
+    def __init__(self):
+        self.download_queue = []
+        self.current_download_count = 0
 
         self.setupUI()
         ui.updateUIParts()
@@ -63,10 +64,6 @@ class Downloads:
         url = str(url.toString())
         url_part = url.replace(G.OCEANOFPDF_URL, "").lower()
 
-        if self.locked:
-            ui.status.setText("Please Wait...")
-            return False
-
         if "pdf-" not in url_part and "epub-" not in url_part:
             return True
 
@@ -78,7 +75,6 @@ class Downloads:
             ui.status.setText("Already Downloaded! - Waiting For User Input...")
             return False
 
-        self.locked = True
         self.queueDownload(url)
         return False
 
@@ -97,19 +93,23 @@ class Downloads:
         )
         insert_index = G.addBook(book)
         book.list_item = ui.BookItem(ui, book, insert_index)
-        book.list_item.progress_bar.config(text="Downloading")
+        book.list_item.progress_bar.config(text="Queued")
         book.list_item.progress_bar.show()
+        self.download_queue.append(book)
+        self.processQueue()
+
+    def processQueue(self):
+        while self.current_download_count < self.MAX_DOWNLOADS and self.download_queue:
+            book = self.download_queue.pop(0)
+            self.current_download_count += 1
+            self.startDownload(book)
+
+    def startDownload(self, book):
+        book.list_item.progress_bar.config(text="Downloading")
         book.download_engine = WebEngineView(ui.hidden_engines_box)
-
-        new_window = QMainWindow()
-        new_window.setGeometry(100, 100, 600, 600)
-        new_window.setCentralWidget(book.download_engine)
-        self.windows[book.download_engine] = new_window
-        new_window.show()
-
         book.download_engine.downloadReq(self.handleDownload)
         book.download_engine.loaded(lambda: self.openBookPage(book))
-        book.download_engine.setUrl(url)
+        book.download_engine.setUrl(book.oceanofpdf_url)
         ui.updateUIParts()
 
     def openBookPage(self, book):
@@ -125,8 +125,7 @@ class Downloads:
             }
         }, 500);
         """
-        book.download_engine.page().runJavaScript(js_code)
-        self.locked = False
+        book.download_engine.page().runJavaScript(js_code, lambda result: None)
 
     def handleDownload(self, download):
         ui.status.setText("Waiting For User Input...")
@@ -148,9 +147,9 @@ class Downloads:
             book.getFileData(book.file_path)
             book.list_item.updateData()
             ui.updateUIParts()
-        del self.windows[book.download_engine]
-        # download_engine.delete()
         book.download_engine = None
+        self.current_download_count -= 1
+        self.processQueue()
 
 
 def close():
