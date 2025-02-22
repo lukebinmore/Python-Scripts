@@ -2,7 +2,6 @@ import os
 import ebookmeta
 import epubfile
 from helper_functions import resizeCoverImage
-from PyQt5.QtWebEngineWidgets import QWebEngineDownloadItem
 from bs4 import XMLParsedAsHTMLWarning
 import warnings
 
@@ -29,7 +28,11 @@ class Book:
             self.getFileData(file_path)
 
     def __eq__(self, other):
-        return isinstance(other, Book) and self.file_path == other.file_path
+        if not isinstance(other, Book):
+            return False
+        if self.file_path is not None and other.file_path is not None:
+            return self.file_path == other.file_path
+        return self.title == other.title
 
     def getFileData(self, file_path):
         self.file_path = os.path.normpath(file_path)

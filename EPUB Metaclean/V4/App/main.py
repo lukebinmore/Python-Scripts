@@ -95,6 +95,7 @@ class Downloads:
         book.list_item = ui.BookItem(ui, book, insert_index)
         book.list_item.progress_bar.config(text="Queued")
         book.list_item.progress_bar.show()
+        book.book_lists.append(self.download_queue)
         self.download_queue.append(book)
         self.processQueue()
 
