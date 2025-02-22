@@ -46,6 +46,10 @@ class UI(QMainWindow):
             self.delete_btn.click(self.deleteBook)
 
         def updateData(self):
+            if self.ui.notice.isVisible():
+                QTimer.singleShot(100, self.updateData)
+                return
+
             self.cover.setImage(self.book.cover)
             self.cover.setVisible(bool(self.book.cover))
             self.title.setText(self.book.title or self.book.file_name)
@@ -211,6 +215,10 @@ class UI(QMainWindow):
         self.loadStyleSheet()
 
     def updateUIParts(self):
+        if self.notice.isVisible():
+            QTimer.singleShot(100, self.updateUIParts)
+            return
+
         QTimer.singleShot(
             50,
             lambda: (

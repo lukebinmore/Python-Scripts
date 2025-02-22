@@ -31,6 +31,9 @@ class Book:
         self.file_path = os.path.normpath(file_path)
         self.file_name = os.path.basename(self.file_path)
 
+        if not os.path.exists(self.file_path):
+            return
+
         try:
             meta = ebookmeta.get_metadata(self.file_path)
             book = epubfile.Epub(self.file_path)
@@ -99,7 +102,7 @@ class Book:
         if self.download_engine is not None:
             self.download_engine.delete()
 
-        if self.download is not None:
+        if self.download:
             self.download.cancel()
 
         if delete_file and self.file_path is not None:

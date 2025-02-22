@@ -255,8 +255,10 @@ class WebEnginePage(QWebEnginePage):
     def acceptNavigationRequest(self, url, _type, is_main_frame):
         if self.intercept_callback is not None:
             return self.intercept_callback(url)
-
         return True
+
+    def javaScriptConsoleMessage(self, level, message, lineNumber, sourceID):
+        pass
 
 
 class WebEngineView(QWebEngineView, BaseWidget):
