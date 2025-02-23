@@ -1,4 +1,6 @@
 import sys
+import epubfile
+import re
 from globals import G
 from ui import UI
 from book_class import Book
@@ -40,7 +42,7 @@ class Downloads:
         )
 
         ui.done_btn.setText("Done")
-        ui.done_btn.click(lambda: (ui.done_btn.hide(), self.close()))
+        ui.done_btn.click(self.close)
 
         ui.web_engine.show()
         ui.web_engine.setInterceptor(self.urlInterceptor)
@@ -50,6 +52,9 @@ class Downloads:
         ui.showContent()
         ui.hidden_engines_box.clear()
         ui.web_engine.setInterceptor(None)
+        for book in G.books:
+            if book.download_engine is not None:
+                book.deleteBook()
 
     def restart(self):
         self.cleanUp()
@@ -106,7 +111,7 @@ class Downloads:
             self.startDownload(book)
 
     def startDownload(self, book):
-        book.list_item.progress_bar.config(text="Downloading")
+        book.list_item.progress_bar.config(text="Starting Download")
         book.download_engine = WebEngineView(ui.hidden_engines_box)
         book.download_engine.downloadReq(self.handleDownload)
         book.download_engine.loaded(lambda: self.openBookPage(book))
@@ -135,6 +140,7 @@ class Downloads:
         download.setDownloadFileName(file_path)
         download.accept()
         book = next((b for b in G.books if b.download_engine == download.page().view()), None)
+        book.list_item.progress_bar.config(text="Downloading")
         book.download = download
         book.file_name = file_name
         book.file_path = file_path
@@ -148,9 +154,72 @@ class Downloads:
             book.getFileData(book.file_path)
             book.list_item.updateData()
             ui.updateUIParts()
+        book.download_engine.delete()
         book.download_engine = None
         self.current_download_count -= 1
         self.processQueue()
+
+
+class Process:
+    def __init__(self):
+        self.setupUI()
+        ui.updateUIParts()
+        self.cleanBooks()
+
+    def setupUI(self):
+        ui.restart_btn.click(
+            lambda: ui.confirmAction(
+                "Restarting Process Task!",
+                "Are you sure you would like to restart the process task?",
+                self.restart,
+                warn_text=True,
+                warn_true=True,
+            )
+        )
+
+        ui.close_btn.click(
+            lambda: ui.confirmAction(
+                "Cancelling Process Task!",
+                "Are you sure you would like to end the process task?",
+                self.close,
+                warn_text=True,
+                warn_true=True,
+            )
+        )
+
+    def cleanUp(self):
+        ui.showContent()
+        ui.hidden_engines_box.clear()
+        ui.web_engine.setInterceptor(None)
+
+    def restart(self):
+        self.cleanUp()
+        QTimer.singleShot(0, startProcessBooks)
+
+    def close(self):
+        self.cleanUp()
+        ui.web_engine.hide()
+        QTimer.singleShot(0, close)
+
+    def cleanBooks(self):
+        def cleanBook(book):
+            book_file = epubfile.Epub(book.file_path)
+            book_pages = len(book_file.get_texts())
+            book.list_item.progress_bar.config(value=0, text="Cleaning Pages")
+            book.list_item.progress_bar.show()
+
+            for index, page in enumerate(book_file.get_texts()):
+                soup = book_file.read_file(page)
+                soup = re.sub(G.STRING_TO_REMOVE, "", soup)
+                book_file.write_file(page, soup)
+                book.list_item.progress_bar.updateProgress(index + 1, book_pages)
+
+            book_file.save(book.file_path)
+            book.list_item.progress_bar.hide()
+
+        ui.status.setText("Cleaning Books...")
+        for curr_book in G.books:
+            QTimer.singleShot(50, lambda: cleanBook(curr_book))
 
 
 def close():
@@ -199,7 +268,7 @@ def startDownloadBooks():
 
 def startProcessBooks():
     close()
-    # G.process_worker = Process()
+    G.process_worker = Process()
 
 
 def startUploadBooks():
