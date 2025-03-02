@@ -73,14 +73,26 @@ class Downloads:
             return True
 
         if "epub-" not in url_part:
-            ui.status.setText("EPUB Not Available! - Waiting For User Input...")
+            ui.status.setText(
+                "EPUB Not Available! - Waiting For User Input..."
+            )
             return False
 
-        if checkBookExists(G.books, "oceanofpdf_url", url):
-            ui.status.setText("Already Downloaded! - Waiting For User Input...")
+        if self.checkBookAlreadyDownloaded(url):
+            ui.status.setText(
+                "Already Downloaded! - Waiting For User Input..."
+            )
             return False
 
         self.queueDownload(url)
+        return False
+
+    def checkBookAlreadyDownloaded(self, url):
+        url = url.split("/")[-1]
+        for book in G.books:
+            if book.oceanofpdf_url.split("/")[-1] == url:
+                return True
+
         return False
 
     def queueDownload(self, url):
@@ -105,7 +117,10 @@ class Downloads:
         self.processQueue()
 
     def processQueue(self):
-        while self.current_download_count < self.MAX_DOWNLOADS and self.download_queue:
+        while (
+            self.current_download_count < self.MAX_DOWNLOADS
+            and self.download_queue
+        ):
             book = self.download_queue.pop(0)
             self.current_download_count += 1
             self.startDownload(book)
@@ -135,16 +150,27 @@ class Downloads:
 
     def handleDownload(self, download):
         ui.status.setText("Waiting For User Input...")
-        file_name = os.path.basename(download.suggestedFileName().replace("/OceanofPDF.com/", ""))
+        file_name = os.path.basename(
+            download.suggestedFileName().replace("/OceanofPDF.com/", "")
+        )
         file_path = os.path.join(os.getcwd(), file_name)
         download.setDownloadFileName(file_path)
         download.accept()
-        book = next((b for b in G.books if b.download_engine == download.page().view()), None)
+        book = next(
+            (
+                b
+                for b in G.books
+                if b.download_engine == download.page().view()
+            ),
+            None,
+        )
         book.list_item.progress_bar.config(text="Downloading")
         book.download = download
         book.file_name = file_name
         book.file_path = file_path
-        book.download.downloadProgress.connect(book.list_item.progress_bar.updateProgress)
+        book.download.downloadProgress.connect(
+            book.list_item.progress_bar.updateProgress
+        )
         book.download.finished.connect(lambda: self.downloadComplete(book))
         book.list_item.updateData()
         ui.updateUIParts()
@@ -164,7 +190,7 @@ class Process:
     def __init__(self):
         self.setupUI()
         ui.updateUIParts()
-        self.cleanBooks()
+        QTimer.singleShot(50, self.cleanBooks)
 
     def setupUI(self):
         ui.restart_btn.click(
@@ -187,7 +213,13 @@ class Process:
             )
         )
 
+        ui.select_btn.click(
+            lambda: ui.web_engine.page().toHtml(self.selectBook)
+        )
+
     def cleanUp(self):
+        for book in G.books:
+            book.list_item.setTheme()
         ui.showContent()
         ui.hidden_engines_box.clear()
         ui.web_engine.setInterceptor(None)
@@ -202,7 +234,10 @@ class Process:
         QTimer.singleShot(0, close)
 
     def cleanBooks(self):
-        def cleanBook(book):
+        ui.status.setText("Cleaning Books...")
+        for book in G.books:
+            if book is None:
+                continue
             book_file = epubfile.Epub(book.file_path)
             book_pages = len(book_file.get_texts())
             book.list_item.progress_bar.config(value=0, text="Cleaning Pages")
@@ -212,14 +247,91 @@ class Process:
                 soup = book_file.read_file(page)
                 soup = re.sub(G.STRING_TO_REMOVE, "", soup)
                 book_file.write_file(page, soup)
-                book.list_item.progress_bar.updateProgress(index + 1, book_pages)
+                book.list_item.progress_bar.updateProgress(
+                    index + 1, book_pages
+                )
 
             book_file.save(book.file_path)
             book.list_item.progress_bar.hide()
 
-        ui.status.setText("Cleaning Books...")
-        for curr_book in G.books:
-            QTimer.singleShot(50, lambda: cleanBook(curr_book))
+        self.searchBook()
+
+    def searchBook(self):
+        ui.status.setText("Searching For Book Metadata...")
+        G.setDeleteBtns(self.searchBook)
+        for book in G.books:
+            if not book.meta_updated:
+                ui.skip_btn.setText("Skip")
+                ui.skip_btn.click(
+                    lambda: ui.confirmAction(
+                        "Skip File - " + book.title,
+                        "Are you sure you want to skip searching for this books details?",
+                        action_true=lambda: (
+                            book.metaSearchSkiped(),
+                            self.searchBook(),
+                        ),
+                        warn_text=True,
+                        warn_true=True,
+                        image=book.cover,
+                    )
+                )
+                ui.web_engine.show()
+                ui.web_engine.setInterceptor(self.urlInterceptor)
+                ui.web_engine.setUrl(
+                    G.GOODREADS_URL
+                    + "search?q="
+                    + book.title.replace(" ", "+")
+                    + "+"
+                    + book.author.replace(" ", "+")
+                )
+                book.list_item.setTheme("highlight")
+                ui.updateUIParts()
+                return
+        QTimer.singleShot(100, self.close)
+
+    def urlInterceptor(self, url):
+        url = str(url.toString())
+        if not url.startswith(G.GOODREADS_URL):
+            return False
+        url_path = url.replace(G.GOODREADS_URL, "")
+        if url_path.startswith("book/show/"):
+            ui.web_engine.loaded(ui.select_btn.show)
+        else:
+            ui.web_engine.loadedDone()
+            ui.select_btn.hide()
+
+        return True
+
+    def selectBook(self, html):
+        ui.status.setText("Scrapping Book Metadata...")
+        for book in G.books:
+            if book.meta_updated:
+                continue
+            book.getGoodreadsData(html, self.confirmOriginalCover)
+            return
+
+    def confirmOriginalCover(self):
+        ui.status.setText("Confirming Cover Image...")
+        for book in G.books:
+            if book.meta_updated:
+                continue
+
+            if book.cover_id is not None:
+                pass
+
+            book.meta_updated = True
+            book.list_item.setTheme()
+            book.list_item.requeue_btn.show()
+            self.checkRequeue()
+            ui.updateUIParts()
+            self.searchBook()
+            return
+
+    def checkRequeue(self):
+        for book in G.books:
+            if book.requeue:
+                book.requeue = False
+                book.meta_updated = False
 
 
 def close():
@@ -231,23 +343,26 @@ def close():
 
 
 def getSourceFiles():
-    files = [f for f in os.listdir(os.getcwd()) if f.endswith(".epub")]
-
-    for file in files:
-        book = Book(file)
-        book.download = False
-        if book not in G.books:
-            insert_index = G.addBook(book)
-            book.list_item = ui.BookItem(ui, book, insert_index)
-
-    ui.updateUIParts()
+    files = [
+        os.path.join(os.getcwd(), f)
+        for f in os.listdir(os.getcwd())
+        if f.endswith(".epub")
+    ]
+    collectFiles(files)
 
 
 def getUserFiles():
-    files, _ = QFileDialog.getOpenFileNames(None, "Select Files", "", "EPUB Files (*.epub)")
+    files, _ = QFileDialog.getOpenFileNames(
+        None, "Select Files", "", "EPUB Files (*.epub)"
+    )
+    collectFiles(files)
 
+
+def collectFiles(files):
     for file in files:
         book = Book(file)
+        if not book.is_epub:
+            continue
         book.download = False
         if book not in G.books:
             insert_index = G.addBook(book)

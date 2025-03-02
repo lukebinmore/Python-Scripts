@@ -51,5 +51,9 @@ class Globals:
         self.books.sort(key=lambda b: b.title.lower() if b.title else "")
         return self.books.index(book)
 
+    def setDeleteBtns(self, action=None):
+        for book in self.books:
+            book.del_action = action
+
 
 G = Globals()

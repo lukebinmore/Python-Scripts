@@ -12,14 +12,35 @@ from PyQt5.QtWidgets import (
     QAction,
     QApplication,
 )
-from PyQt5.QtCore import Qt, QRectF, QByteArray, QTimer, QSize, QBuffer, QIODevice, QUrl
-from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEnginePage, QWebEngineContextMenuData
+from PyQt5.QtCore import (
+    Qt,
+    QRectF,
+    QByteArray,
+    QTimer,
+    QSize,
+    QBuffer,
+    QIODevice,
+    QUrl,
+)
+from PyQt5.QtWebEngineWidgets import (
+    QWebEngineView,
+    QWebEnginePage,
+    QWebEngineContextMenuData,
+)
 from PyQt5.QtGui import QPainterPath, QBitmap, QPainter, QPixmap, QIcon
 from globals import G
 
 
 class BaseWidget:
-    def __init__(self, parent=None, name=None, hor_policy=None, ver_policy=None, warn=False, insert_index=None):
+    def __init__(
+        self,
+        parent=None,
+        name=None,
+        hor_policy=None,
+        ver_policy=None,
+        theme=None,
+        insert_index=None,
+    ):
         if not isinstance(self, QWidget):
             raise TypeError("BaseWidget must be used with QWidget subclasses")
 
@@ -30,7 +51,7 @@ class BaseWidget:
         self.ver_policy = ver_policy if ver_policy is not None else G.PREFERRED
         self.setSizePolicy(self.hor_policy, self.ver_policy)
 
-        self.warn(warn)
+        self.setTheme(theme)
         self.setContentsMargins(0, 0, 0, 0)
 
         if isinstance(parent, Container):
@@ -39,8 +60,8 @@ class BaseWidget:
             else:
                 parent.insert(insert_index, self)
 
-    def warn(self, warn):
-        self.setProperty("theme", "warn" if warn else None)
+    def setTheme(self, theme=None):
+        self.setProperty("theme", theme)
 
     def hide(self):
         self.setVisible(False)
@@ -68,9 +89,24 @@ class BaseWidget:
 
 
 class Container(QFrame, BaseWidget):
-    def __init__(self, parent=None, name=None, vertical=True, hor_policy=None, ver_policy=None, insert_index=None):
+    def __init__(
+        self,
+        parent=None,
+        name=None,
+        vertical=True,
+        hor_policy=None,
+        ver_policy=None,
+        insert_index=None,
+    ):
         QFrame.__init__(self, parent)
-        BaseWidget.__init__(self, parent, name, hor_policy, ver_policy, insert_index=insert_index)
+        BaseWidget.__init__(
+            self,
+            parent,
+            name,
+            hor_policy,
+            ver_policy,
+            insert_index=insert_index,
+        )
 
         self.layout = QVBoxLayout(self) if vertical else QHBoxLayout(self)
         self.setLayout(self.layout)
@@ -102,24 +138,43 @@ class Container(QFrame, BaseWidget):
 
 
 class ScrollContainer(QScrollArea, BaseWidget):
-    def __init__(self, parent=None, name=None, vertical=True, hor_policy=None, ver_policy=None):
+    def __init__(
+        self,
+        parent=None,
+        name=None,
+        vertical=True,
+        hor_policy=None,
+        ver_policy=None,
+    ):
         QScrollArea.__init__(self, parent)
         BaseWidget.__init__(self, parent, hor_policy, ver_policy)
 
-        self.container = Container(self, name, vertical, hor_policy, ver_policy)
+        self.container = Container(
+            self, name, vertical, hor_policy, ver_policy
+        )
         self.setWidget(self.container)
         self.setWidgetResizable(True)
 
 
 class Label(QLabel, BaseWidget):
-    def __init__(self, parent=None, name=None, text=None, hor_policy=None, ver_policy=None, warn=False):
+    def __init__(
+        self,
+        parent=None,
+        name=None,
+        text=None,
+        hor_policy=None,
+        ver_policy=None,
+        theme=None,
+    ):
         QLabel.__init__(self, text, parent)
-        BaseWidget.__init__(self, parent, name, hor_policy, ver_policy, warn)
+        BaseWidget.__init__(self, parent, name, hor_policy, ver_policy, theme)
         self.setWordWrap(True)
 
 
 class ImageLabel(QLabel, BaseWidget):
-    def __init__(self, parent=None, name=None, hor_policy=None, ver_policy=None):
+    def __init__(
+        self, parent=None, name=None, hor_policy=None, ver_policy=None
+    ):
         QLabel.__init__(self, parent)
         BaseWidget.__init__(self, parent, name, hor_policy, ver_policy)
         self.setAlignment(Qt.AlignCenter)
@@ -145,13 +200,23 @@ class ImageLabel(QLabel, BaseWidget):
 
     def updateImageSize(self):
         if hasattr(self, "image_original") and self.image_original is not None:
-            self.setPixmap(self.image_original.scaled(self.size(), Qt.KeepAspectRatio))
+            self.setPixmap(
+                self.image_original.scaled(self.size(), Qt.KeepAspectRatio)
+            )
 
 
 class PushButton(QPushButton, BaseWidget):
-    def __init__(self, parent=None, name=None, text=None, hor_policy=None, ver_policy=None, warn=False):
+    def __init__(
+        self,
+        parent=None,
+        name=None,
+        text=None,
+        hor_policy=None,
+        ver_policy=None,
+        theme=None,
+    ):
         QPushButton.__init__(self, text, parent)
-        BaseWidget.__init__(self, parent, name, hor_policy, ver_policy, warn)
+        BaseWidget.__init__(self, parent, name, hor_policy, ver_policy, theme)
 
     def click(self, slot):
         try:
@@ -163,7 +228,9 @@ class PushButton(QPushButton, BaseWidget):
 
 
 class ImageButton(QPushButton, BaseWidget):
-    def __init__(self, parent=None, name=None, hor_policy=None, ver_policy=None):
+    def __init__(
+        self, parent=None, name=None, hor_policy=None, ver_policy=None
+    ):
         QPushButton.__init__(self, "", parent)
         BaseWidget.__init__(self, parent, name, hor_policy, ver_policy)
         self.setIconSize(self.size())
@@ -185,7 +252,9 @@ class ImageButton(QPushButton, BaseWidget):
 
     def updateImageSize(self):
         if self.isVisible() and hasattr(self, "image_original"):
-            scaled_pixmap = self.image_original.scaled(self.size(), Qt.KeepAspectRatio)
+            scaled_pixmap = self.image_original.scaled(
+                self.size(), Qt.KeepAspectRatio
+            )
             self.setIcon(QIcon(scaled_pixmap))
             self.setIconSize(QSize(*G.THUMBNAIL_SIZE))
             self.setFixedSize(QSize(*G.THUMBNAIL_SIZE))
@@ -221,7 +290,9 @@ class ImageButton(QPushButton, BaseWidget):
 
 
 class ProgressBar(QProgressBar, BaseWidget):
-    def __init__(self, parent=None, name=None, hor_policy=None, ver_policy=None):
+    def __init__(
+        self, parent=None, name=None, hor_policy=None, ver_policy=None
+    ):
         QProgressBar.__init__(self, parent)
         BaseWidget.__init__(self, parent, name, hor_policy, ver_policy)
         self.setTextVisible(True)
@@ -242,9 +313,12 @@ class ProgressBar(QProgressBar, BaseWidget):
         if text is not None:
             self.setFormat(f"{text}: %p%")
 
-    def updateProgress(self, value, total):
+    def updateProgress(self, value, total, text=None):
         if total > 0:
             self.setValue(int((value / total) * 100))
+
+        if text is not None:
+            self.setFormat(f"{text}: %p%")
 
 
 class WebEnginePage(QWebEnginePage):
@@ -262,7 +336,9 @@ class WebEnginePage(QWebEnginePage):
 
 
 class WebEngineView(QWebEngineView, BaseWidget):
-    def __init__(self, parent=None, name=None, hor_policy=None, ver_policy=None):
+    def __init__(
+        self, parent=None, name=None, hor_policy=None, ver_policy=None
+    ):
         QWebEngineView.__init__(self, parent)
         BaseWidget.__init__(self, parent, name, hor_policy, ver_policy)
 
@@ -306,7 +382,9 @@ class WebEngineView(QWebEngineView, BaseWidget):
                     if not clipboard.image().isNull():
                         processImage()
                     elif attempts > 0:
-                        QTimer.singleShot(50, lambda: waitForClipboardContent(attempts - 1))
+                        QTimer.singleShot(
+                            50, lambda: waitForClipboardContent(attempts - 1)
+                        )
 
                 def processImage():
                     clipboard = QApplication.clipboard()

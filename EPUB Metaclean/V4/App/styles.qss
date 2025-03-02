@@ -1,9 +1,13 @@
 QWidget {
     color: {primary_color};
-    background-color: {bg_color};
+    background-color: transparent;
     border: {border_alt};
     border-radius: {border_radius};
     font-size: {text_size};
+}
+
+#base {
+    background-color: {bg_color}
 }
 
 QFrame, QLabel, #base, #nav_btns_box > QFrame {
@@ -45,10 +49,18 @@ QPushButton[theme="warn"]:pressed {
     background-color: {bg_alt_color};
 }
 
-#list_item > QFrame, #list_item > QFrame > * {
-    background-color: transparent;
+#list_item[theme="highlight"] {
+    background-color: {primary_color};
 }
 
 #list_item:hover {
     background-color: {bg_color};
+}
+
+#list_item[theme="highlight"]:hover {
+    background-color: {bg_color};
+}
+
+#list_item[theme="highlight"] > QFrame > QLabel {
+    color: {btn_text_alt_color};
 }

@@ -2,20 +2,24 @@ import os
 import ebookmeta
 import epubfile
 from helper_functions import resizeCoverImage
-from bs4 import XMLParsedAsHTMLWarning
+from bs4 import XMLParsedAsHTMLWarning, BeautifulSoup
 import warnings
+import requests
 
 warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 
 
 class Book:
     def __init__(self, file_path=None):
+        self.is_epub = True
         self.title = None
         self.author = None
         self.series = None
         self.series_index = None
         self.cover = None
         self.cover_id = None
+        self.cover_url = None
+        self.possible_cover = None
         self.file_name = None
         self.file_path = None
         self.oceanofpdf_url = None
@@ -23,6 +27,10 @@ class Book:
         self.book_lists = []
         self.download = None
         self.download_engine = None
+        self.cleaned = False
+        self.meta_updated = False
+        self.del_action = None
+        self.requeue = False
 
         if file_path is not None:
             self.getFileData(file_path)
@@ -39,6 +47,7 @@ class Book:
         self.file_name = os.path.basename(self.file_path)
 
         if not os.path.exists(self.file_path):
+            print("Testing")
             return
 
         try:
@@ -59,10 +68,16 @@ class Book:
 
         except Exception as e:
             print(f"Error loading metadata: {e}")
+            self.is_epub = False
 
     def getCoverID(self, book):
         false_positives = ["images/cover.png"]
-        possible_tags = ["coverimagestandard", "cover.png", "cover-image", "cover"]
+        possible_tags = [
+            "coverimagestandard",
+            "cover.png",
+            "cover-image",
+            "cover",
+        ]
 
         try:
             cover_id = book.get_cover_image()
@@ -80,7 +95,72 @@ class Book:
 
         return None
 
-    def saveBook(self):
+    def getGoodreadsData(self, html, finished_action=None):
+        total_steps = 8
+        self.list_item.progress_bar.config(value=0, text="Scrapping Data...")
+        self.list_item.progress_bar.show()
+
+        soup = BeautifulSoup(html, "html.parser")
+        self.list_item.progress_bar.updateProgress(
+            1, total_steps, "Scraping Title..."
+        )
+
+        self.title = soup.select(".Text__title1")[0].text.strip()
+        self.list_item.updateData()
+        self.list_item.progress_bar.updateProgress(
+            2, total_steps, "Scraping Author..."
+        )
+
+        self.author = soup.select(".ContributorLink__name")[0].text.strip()
+        self.list_item.updateData()
+        self.list_item.progress_bar.updateProgress(
+            3, total_steps, "Scraping Series..."
+        )
+
+        series_text = soup.select_one(
+            'a[href^="https://www.goodreads.com/series"]'
+        )
+        if series_text:
+            series_text = series_text.get_text(strip=True)
+            series_text = series_text.split("#")
+            self.series = series_text[0].strip()
+            self.list_item.updateData()
+            if len(series_text) > 1:
+                self.list_item.progress_bar.updateProgress(
+                    4, total_steps, "Scraping Series Index..."
+                )
+                self.series_index = series_text[1].strip()
+                self.list_item.updateData()
+
+        self.list_item.progress_bar.updateProgress(
+            5, total_steps, "Saving Metadata..."
+        )
+        self.saveMetadata()
+
+        if self.cover_id is not None:
+            self.list_item.progress_bar.updateProgress(
+                6, total_steps, "Scraping Cover Url..."
+            )
+
+            self.cover_url = soup.select(".BookCover__image")[0].select("img")[
+                0
+            ]["src"]
+            self.list_item.progress_bar.updateProgress(
+                7, total_steps, "Downloading Cover..."
+            )
+
+            self.possible_cover = resizeCoverImage(
+                requests.get(self.cover_url, stream=True).content
+            )
+
+        self.list_item.progress_bar.updateProgress(
+            total_steps, total_steps, "Finished"
+        )
+        self.list_item.progress_bar.hide()
+        if finished_action is not None:
+            finished_action()
+
+    def saveMetadata(self):
         if not self.file_path:
             raise ValueError("No file path set for the book.")
 
@@ -94,6 +174,15 @@ class Book:
         try:
             ebookmeta.set_metadata(self.file_path, meta)
 
+            if self.cover_id is not None:
+                book = epubfile.Epub(self.file_path)
+                book.write_file(self.cover_id, self.cover)
+                book.save(self.file_path)
+        except Exception as e:
+            print(f"Error saving metadata: {e}")
+
+    def saveCover(self):
+        try:
             if self.cover_id is not None:
                 book = epubfile.Epub(self.file_path)
                 book.write_file(self.cover_id, self.cover)
@@ -120,3 +209,10 @@ class Book:
 
         if self.list_item is not None:
             self.list_item.delete()
+
+        if self.del_action is not None:
+            self.del_action()
+
+    def metaSearchSkiped(self):
+        self.meta_updated = True
+        self.list_item.setTheme()

@@ -13,10 +13,6 @@ def resourcePath(relative_path):
     return os.path.join(base_path, relative_path)
 
 
-def checkBookExists(books, target_key, target_val):
-    return any(getattr(book, target_key, False) == target_val for book in books)
-
-
 def resizeCoverImage(img_data):
     image = Image.open(BytesIO(img_data))
     if image.mode in ("RGBA", "P"):

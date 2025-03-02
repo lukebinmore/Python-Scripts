@@ -28,8 +28,16 @@ class UI(QMainWindow):
             self.ui = ui
             self.book = book
 
+            self.requeue_btn = PushButton(self, text=" ↺ ", theme="warn")
+            self.requeue_btn.click(self.requeueBook)
+            self.requeue_btn.hide()
+
             self.cover = ImageButton(self, "list_item_cover")
-            self.cover.click(lambda: ui.confirmAction(title=self.book.title, image=self.book.cover, info=True))
+            self.cover.click(
+                lambda: ui.confirmAction(
+                    title=self.book.title, image=self.book.cover, info=True
+                )
+            )
 
             self.details = Container(self, hor_policy=G.EXPANDING)
             self.details.setSpacing(0)
@@ -42,7 +50,7 @@ class UI(QMainWindow):
 
             self.updateData()
 
-            self.delete_btn = PushButton(self, text=" 🗑 ", warn=True)
+            self.delete_btn = PushButton(self, text=" 🗑 ", theme="warn")
             self.delete_btn.click(self.deleteBook)
 
         def updateData(self):
@@ -53,10 +61,20 @@ class UI(QMainWindow):
             self.cover.setImage(self.book.cover)
             self.cover.setVisible(bool(self.book.cover))
             self.title.setText(self.book.title or self.book.file_name)
-            self.author.setText(f"Author: {self.book.author}" if self.book.author is not None else None)
-            self.series.setText(f"Series: {self.book.series}" if self.book.series is not None else None)
+            self.author.setText(
+                f"Author: {self.book.author}"
+                if self.book.author is not None
+                else None
+            )
+            self.series.setText(
+                f"Series: {self.book.series}"
+                if self.book.series is not None
+                else None
+            )
             self.series_index.setText(
-                f"Book: #{self.book.series_index}" if self.book.series_index is not None else None
+                f"Book: #{self.book.series_index}"
+                if self.book.series_index is not None
+                else None
             )
 
             if self.progress_bar.value() == self.progress_bar.maximum():
@@ -67,12 +85,18 @@ class UI(QMainWindow):
             self.ui.confirmAction(
                 "Deleting Book",
                 "Would you like to delete the source file?",
-                lambda: self.book.deleteBook(True),
-                lambda: self.book.deleteBook(False),
+                lambda: (self.book.deleteBook(True)),
+                lambda: (self.book.deleteBook(False)),
                 warn_text=True,
                 warn_true=True,
-                image=resizeCoverImage(self.book.cover) if cover_exists else None,
+                image=(
+                    resizeCoverImage(self.book.cover) if cover_exists else None
+                ),
             )
+
+        def requeueBook(self):
+            self.book.requeue = True
+            self.requeue_btn.hide()
 
     def __init__(self):
         super().__init__()
@@ -105,7 +129,9 @@ class UI(QMainWindow):
 
     def updateFontSize(self):
         screen_size = QApplication.primaryScreen().size()
-        self.style_variables["text_size"] = f"{max(14, screen_size.height()//90)}px"
+        self.style_variables["text_size"] = (
+            f"{max(14, screen_size.height()//90)}px"
+        )
 
     def loadStyleSheet(self):
         with open(resourcePath(G.STYLES_FILE), "r") as styles:
@@ -120,44 +146,77 @@ class UI(QMainWindow):
         self.content = Container(self.base, "content")
 
         self.task_label_box = Container(self.content, "task_label_box", False)
-        self.restart_btn = PushButton(self.task_label_box, text=" ↺ ", warn=True)
+        self.restart_btn = PushButton(
+            self.task_label_box, text=" ↺ ", theme="warn"
+        )
         self.task_label = Label(self.task_label_box, hor_policy=G.EXPANDING)
         self.task_label.setAlignment(Qt.AlignCenter)
-        self.close_btn = PushButton(self.task_label_box, text=" X ", warn=True)
+        self.close_btn = PushButton(
+            self.task_label_box, text=" X ", theme="warn"
+        )
         self.task_label_box.hide()
 
         self.task_btns_box = Container(self.content, "task_btns_box", False)
-        self.download_task_btn = PushButton(self.task_btns_box, "download_task_btn", "Download New Books")
-        self.process_task_btn = PushButton(self.task_btns_box, "process_task_btn", "Process Books")
-        self.upload_task_btn = PushButton(self.task_btns_box, "upload_task_btn", "Upload Books")
+        self.download_task_btn = PushButton(
+            self.task_btns_box, "download_task_btn", "Download New Books"
+        )
+        self.process_task_btn = PushButton(
+            self.task_btns_box, "process_task_btn", "Process Books"
+        )
+        self.upload_task_btn = PushButton(
+            self.task_btns_box, "upload_task_btn", "Upload Books"
+        )
 
-        self.center_box = Container(self.content, "center_box", vertical=False, ver_policy=G.EXPANDING)
+        self.center_box = Container(
+            self.content, "center_box", vertical=False, ver_policy=G.EXPANDING
+        )
         self.center_box.setSpacing(5)
-        self.web_engine = WebEngineView(self.center_box, "web_engine", hor_policy=G.EXPANDING)
+        self.web_engine = WebEngineView(
+            self.center_box, "web_engine", hor_policy=G.EXPANDING
+        )
         self.web_engine.hide()
         self.book_list_box = ScrollContainer(self.center_box, "book_list_box")
         self.book_list_box.container.setSpacing(5)
         self.book_list_box.setMinimumWidth(G.MINIMUM_SIZE[0])
-        self.book_list_spacer = Label(self.book_list_box.container, "book_list_spacer", ver_policy=G.EXPANDING)
+        self.book_list_spacer = Label(
+            self.book_list_box.container,
+            "book_list_spacer",
+            ver_policy=G.EXPANDING,
+        )
 
         self.done_btn = PushButton(self.content, "done_btn")
         self.done_btn.hide()
 
-        self.book_options_box = Container(self.content, "book_options_box", False)
-        self.select_downloads_btn = PushButton(self.book_options_box, text="Select Downloadeds")
-        self.select_others_btn = PushButton(self.book_options_box, text="Select Other Books")
-        self.clear_all_btn = PushButton(self.book_options_box, text="Clear All", warn=True)
+        self.book_options_box = Container(
+            self.content, "book_options_box", False
+        )
+        self.select_downloads_btn = PushButton(
+            self.book_options_box, text="Select Downloadeds"
+        )
+        self.select_others_btn = PushButton(
+            self.book_options_box, text="Select Other Books"
+        )
+        self.clear_all_btn = PushButton(
+            self.book_options_box, text="Clear All", theme="warn"
+        )
 
         self.nav_btns_box = Container(self.content, "nav_btns_box", False)
         self.back_btn = PushButton(self.nav_btns_box, text="Go Back")
         self.back_btn.click(self.web_engine.back)
         self.select_btn = PushButton(self.nav_btns_box, text="Select")
-        self.skip_btn = PushButton(self.nav_btns_box, text="Skip", warn=True)
+        self.skip_btn = PushButton(
+            self.nav_btns_box, text="Skip", theme="warn"
+        )
         self.nav_btns_box.hide()
 
         self.status_box = Container(self.content, "status_box", False)
         self.status_label = Label(self.status_box, "status_label", "Status: ")
-        self.status = Label(self.status_box, "status", "Waiting For User Input...", hor_policy=G.EXPANDING)
+        self.status = Label(
+            self.status_box,
+            "status",
+            "Waiting For User Input...",
+            hor_policy=G.EXPANDING,
+        )
 
     def initNoticePage(self):
         self.notice = Container(self.base, "notice", ver_policy=G.EXPANDING)
@@ -200,15 +259,15 @@ class UI(QMainWindow):
         self.notice_image.setImage(image)
 
         self.notice_text.setText(text)
-        self.notice_text.warn(warn_text)
+        self.notice_text.setTheme("warn" if warn_text else None)
 
         action_true = action_true if action_true else print
         action_false = action_false if action_false else print
 
         self.true_btn.setText("OK" if info else "YES")
         self.false_btn.setVisible(not info)
-        self.true_btn.warn(warn_true)
-        self.false_btn.warn(warn_false)
+        self.true_btn.setTheme("warn" if warn_true else None)
+        self.false_btn.setTheme("warn" if warn_false else None)
         self.true_btn.click(lambda: (action_true(), self.showContent()))
         self.false_btn.click(lambda: (action_false(), self.showContent()))
 
@@ -222,11 +281,13 @@ class UI(QMainWindow):
         QTimer.singleShot(
             50,
             lambda: (
+                self.loadStyleSheet(),
                 updateBookList(),
                 updateSelectDownloadsBtn(),
                 updateListSpecificBtns(),
                 updateTaskBtns(),
                 updateDoneBtn(),
+                updateNavBtns(),
                 updateTaskLabel(),
             ),
         )
@@ -268,11 +329,22 @@ class UI(QMainWindow):
                 return
             if any(book.download is None for book in G.books):
                 return
-            if any(book.download and not book.download.isFinished() for book in G.books):
+            if any(
+                book.download and not book.download.isFinished()
+                for book in G.books
+            ):
                 return
-            if not G.download_worker and not G.process_worker and not G.upload_worker:
+            if not G.download_worker and not G.upload_worker:
                 return
             self.done_btn.show()
+
+        def updateNavBtns():
+            self.nav_btns_box.hide()
+            if not self.web_engine.isVisible():
+                return
+            if G.download_worker or G.upload_worker:
+                return
+            self.nav_btns_box.show()
 
         def updateTaskLabel():
             self.task_label_box.hide()
@@ -283,6 +355,10 @@ class UI(QMainWindow):
             if G.upload_worker is not None:
                 self.task_label.setText("Uploading Books")
 
-            if not G.download_worker and not G.process_worker and not G.upload_worker:
+            if (
+                not G.download_worker
+                and not G.process_worker
+                and not G.upload_worker
+            ):
                 return
             self.task_label_box.show()
