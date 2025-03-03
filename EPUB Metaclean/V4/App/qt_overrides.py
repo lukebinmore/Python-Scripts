@@ -29,6 +29,7 @@ from PyQt5.QtWebEngineWidgets import (
 )
 from PyQt5.QtGui import QPainterPath, QBitmap, QPainter, QPixmap, QIcon
 from globals import G
+from helper_functions import resizeCoverImage
 
 
 class BaseWidget:
@@ -352,7 +353,7 @@ class WebEngineView(QWebEngineView, BaseWidget):
         super().resizeEvent(event)
         self.applyBorderRadius()
 
-    def setInterceptor(self, interceptor):
+    def setInterceptor(self, interceptor=None):
         self.web_page.intercept_callback = interceptor
 
     def contextMenuEvent(self, event):
@@ -366,9 +367,6 @@ class WebEngineView(QWebEngineView, BaseWidget):
             image_url = hit_test.mediaUrl().toString()
 
             if image_url.lower().endswith((".jpg", ".jpeg", ".png")):
-                select_action = QAction("Select", menu)
-                select_action.triggered.connect(handleImage)
-                menu.addAction(select_action)
 
                 def handleImage():
                     clipboard = QApplication.clipboard()
@@ -396,9 +394,12 @@ class WebEngineView(QWebEngineView, BaseWidget):
                     image = buffer.data()
 
                     if not image.isNull() and self.image_select_callback:
-                        self.image_select_callback(image)
+                        self.image_select_callback(resizeCoverImage(image))
 
-                menu.popup(event.globalPos())
+                select_action = QAction("Select", menu)
+                select_action.triggered.connect(handleImage)
+                menu.addAction(select_action)
+                menu.exec_(event.globalPos())
 
     def setContextCall(self, callback=None):
         self.context_menu_enabled = True if callback is not None else False

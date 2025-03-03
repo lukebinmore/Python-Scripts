@@ -19,7 +19,7 @@ class Book:
         self.cover = None
         self.cover_id = None
         self.cover_url = None
-        self.possible_cover = None
+        self.goodreads_cover = None
         self.file_name = None
         self.file_path = None
         self.oceanofpdf_url = None
@@ -149,7 +149,7 @@ class Book:
                 7, total_steps, "Downloading Cover..."
             )
 
-            self.possible_cover = resizeCoverImage(
+            self.goodreads_cover = resizeCoverImage(
                 requests.get(self.cover_url, stream=True).content
             )
 
@@ -216,3 +216,5 @@ class Book:
     def metaSearchSkiped(self):
         self.meta_updated = True
         self.list_item.setTheme()
+        if self.list_item is not None:
+            self.list_item.updateData()

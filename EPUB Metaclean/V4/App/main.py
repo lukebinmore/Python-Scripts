@@ -41,8 +41,8 @@ class Downloads:
             )
         )
 
-        ui.done_btn.setText("Done")
-        ui.done_btn.click(self.close)
+        ui.nav_btn_1.setText("Done")
+        ui.nav_btn_1.click(self.close)
 
         ui.web_engine.show()
         ui.web_engine.setInterceptor(self.urlInterceptor)
@@ -52,9 +52,13 @@ class Downloads:
         ui.showContent()
         ui.hidden_engines_box.clear()
         ui.web_engine.setInterceptor(None)
+        incomplete_books = []
         for book in G.books:
-            if book.download_engine is not None:
-                book.deleteBook()
+            if book.download_engine is not None or book.file_path is None:
+                incomplete_books.append(book)
+
+        for book in incomplete_books:
+            book.deleteBook()
 
     def restart(self):
         self.cleanUp()
@@ -88,10 +92,11 @@ class Downloads:
         return False
 
     def checkBookAlreadyDownloaded(self, url):
-        url = url.split("/")[-1]
+        url = url.split("/")[-2]
         for book in G.books:
-            if book.oceanofpdf_url.split("/")[-1] == url:
-                return True
+            if book.oceanofpdf_url is not None:
+                if book.oceanofpdf_url.split("/")[-2] == url:
+                    return True
 
         return False
 
@@ -172,13 +177,11 @@ class Downloads:
             book.list_item.progress_bar.updateProgress
         )
         book.download.finished.connect(lambda: self.downloadComplete(book))
-        book.list_item.updateData()
         ui.updateUIParts()
 
     def downloadComplete(self, book):
         if book:
             book.getFileData(book.file_path)
-            book.list_item.updateData()
             ui.updateUIParts()
         book.download_engine.delete()
         book.download_engine = None
@@ -188,6 +191,7 @@ class Downloads:
 
 class Process:
     def __init__(self):
+        self.show_select = False
         self.setupUI()
         ui.updateUIParts()
         QTimer.singleShot(50, self.cleanBooks)
@@ -211,10 +215,6 @@ class Process:
                 warn_text=True,
                 warn_true=True,
             )
-        )
-
-        ui.select_btn.click(
-            lambda: ui.web_engine.page().toHtml(self.selectBook)
         )
 
     def cleanUp(self):
@@ -259,10 +259,17 @@ class Process:
     def searchBook(self):
         ui.status.setText("Searching For Book Metadata...")
         G.setDeleteBtns(self.searchBook)
+        ui.web_engine.show()
+        ui.web_engine.loaded(ui.updateUIParts)
+        ui.nav_btn_1.setText("Select")
+        ui.nav_btn_1.click(
+            lambda: ui.web_engine.page().toHtml(self.selectBook)
+        )
+        self.checkRequeue()
         for book in G.books:
             if not book.meta_updated:
-                ui.skip_btn.setText("Skip")
-                ui.skip_btn.click(
+                ui.nav_btn_2.setText("Skip")
+                ui.nav_btn_2.click(
                     lambda: ui.confirmAction(
                         "Skip File - " + book.title,
                         "Are you sure you want to skip searching for this books details?",
@@ -275,7 +282,6 @@ class Process:
                         image=book.cover,
                     )
                 )
-                ui.web_engine.show()
                 ui.web_engine.setInterceptor(self.urlInterceptor)
                 ui.web_engine.setUrl(
                     G.GOODREADS_URL
@@ -295,37 +301,101 @@ class Process:
             return False
         url_path = url.replace(G.GOODREADS_URL, "")
         if url_path.startswith("book/show/"):
-            ui.web_engine.loaded(ui.select_btn.show)
+            self.show_select = True
         else:
-            ui.web_engine.loadedDone()
-            ui.select_btn.hide()
+            self.show_select = False
 
         return True
 
     def selectBook(self, html):
         ui.status.setText("Scrapping Book Metadata...")
+        self.show_select = False
         for book in G.books:
             if book.meta_updated:
                 continue
-            book.getGoodreadsData(html, self.confirmOriginalCover)
+            book.getGoodreadsData(
+                html,
+                lambda: ui.confirmAction(
+                    "Original Cover Image",
+                    "Are you happy with this cover image?",
+                    self.completeBook,
+                    lambda: self.selectCover(book.goodreads_cover),
+                    image=book.cover,
+                ),
+            )
             return
 
-    def confirmOriginalCover(self):
+    def selectCover(self, image=None, accept=None):
         ui.status.setText("Confirming Cover Image...")
         for book in G.books:
             if book.meta_updated:
                 continue
 
-            if book.cover_id is not None:
-                pass
+            if book.cover_id is None:
+                self.completeBook()
+                return
 
+            if accept is None:
+                ui.confirmAction(
+                    "Confirm Cover Image",
+                    "Are you happy with this cover image?",
+                    lambda: self.completeBook(image),
+                    lambda: self.selectCover(accept=False),
+                    image=image,
+                )
+                return
+
+            if accept:
+                ui.web_engine.setContextCall()
+                self.completeBook(image)
+                return
+
+            ui.web_engine.setContextCall(self.selectCover)
+            ui.web_engine.setInterceptor()
+            ui.web_engine.loadedDone()
+            ui.web_engine.setUrl(
+                G.IMAGE_PROVIDER_URL
+                + book.title.replace(" ", "+")
+                + "+"
+                + book.author.replace(" ", "+")
+            )
+            ui.nav_btn_1.setText("EPUB Cover")
+            ui.nav_btn_1.click(lambda: self.selectCover(book.cover))
+            ui.nav_btn_1.setText("Goodreads Cover")
+            ui.nav_btn_1.click(lambda: self.selectCover(book.goodreads_cover))
+            return
+
+    def completeBook(self, image=None):
+        ui.status.setText("Finalising book...")
+        for book in G.books:
+            if book.meta_updated:
+                continue
+
+            new_file_name = (
+                book.title
+                if book.title is not None
+                else book.file_name.replace(".epub", "")
+            )
+            new_file_name += (
+                f" - {book.author}" if book.author is not None else ""
+            )
+            new_file_path = os.path.join(os.getcwd(), new_file_name + ".epub")
+
+            try:
+                os.rename(book.file_path, new_file_path)
+                book.file_path = new_file_path
+                book.file_name = new_file_name
+            except Exception as e:
+                print(f"Error renaming file: {e}")
+
+            if image is not None:
+                book.cover = image
+            book.saveCover()
             book.meta_updated = True
             book.list_item.setTheme()
-            book.list_item.requeue_btn.show()
-            self.checkRequeue()
-            ui.updateUIParts()
-            self.searchBook()
-            return
+            break
+        ui.updateUIParts()
+        self.searchBook()
 
     def checkRequeue(self):
         for book in G.books:

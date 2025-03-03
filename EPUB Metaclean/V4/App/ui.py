@@ -11,7 +11,8 @@ from qt_overrides import (
     ScrollContainer,
     ImageLabel,
 )
-from helper_functions import *
+from helper_functions import resourcePath
+import os
 from globals import G
 
 
@@ -58,6 +59,11 @@ class UI(QMainWindow):
                 QTimer.singleShot(100, self.updateData)
                 return
 
+            if not G.download_worker and not G.upload_worker:
+                self.requeue_btn.setVisible(bool(self.book.meta_updated))
+            else:
+                self.requeue_btn.hide()
+
             self.cover.setImage(self.book.cover)
             self.cover.setVisible(bool(self.book.cover))
             self.title.setText(self.book.title or self.book.file_name)
@@ -89,9 +95,7 @@ class UI(QMainWindow):
                 lambda: (self.book.deleteBook(False)),
                 warn_text=True,
                 warn_true=True,
-                image=(
-                    resizeCoverImage(self.book.cover) if cover_exists else None
-                ),
+                image=self.book.cover if cover_exists else None,
             )
 
         def requeueBook(self):
@@ -113,6 +117,7 @@ class UI(QMainWindow):
         self.hidden_engines_box.hide()
 
         self.style_variables = G.STYLE_VARIABLES
+        self.show_requeue = False
 
         self.initUI()
         self.initNoticePage()
@@ -184,9 +189,6 @@ class UI(QMainWindow):
             ver_policy=G.EXPANDING,
         )
 
-        self.done_btn = PushButton(self.content, "done_btn")
-        self.done_btn.hide()
-
         self.book_options_box = Container(
             self.content, "book_options_box", False
         )
@@ -203,10 +205,8 @@ class UI(QMainWindow):
         self.nav_btns_box = Container(self.content, "nav_btns_box", False)
         self.back_btn = PushButton(self.nav_btns_box, text="Go Back")
         self.back_btn.click(self.web_engine.back)
-        self.select_btn = PushButton(self.nav_btns_box, text="Select")
-        self.skip_btn = PushButton(
-            self.nav_btns_box, text="Skip", theme="warn"
-        )
+        self.nav_btn_1 = PushButton(self.nav_btns_box)
+        self.nav_btn_2 = PushButton(self.nav_btns_box)
         self.nav_btns_box.hide()
 
         self.status_box = Container(self.content, "status_box", False)
@@ -268,8 +268,12 @@ class UI(QMainWindow):
         self.false_btn.setVisible(not info)
         self.true_btn.setTheme("warn" if warn_true else None)
         self.false_btn.setTheme("warn" if warn_false else None)
-        self.true_btn.click(lambda: (action_true(), self.showContent()))
-        self.false_btn.click(lambda: (action_false(), self.showContent()))
+        self.true_btn.click(
+            lambda: (QTimer.singleShot(50, action_true), self.showContent())
+        )
+        self.false_btn.click(
+            lambda: (QTimer.singleShot(50, action_false), self.showContent())
+        )
 
         self.loadStyleSheet()
 
@@ -286,9 +290,11 @@ class UI(QMainWindow):
                 updateSelectDownloadsBtn(),
                 updateListSpecificBtns(),
                 updateTaskBtns(),
-                updateDoneBtn(),
+                updateNavBtn1(),
+                updateNavBtn2(),
                 updateNavBtns(),
                 updateTaskLabel(),
+                updateBookList(),
             ),
         )
 
@@ -323,26 +329,33 @@ class UI(QMainWindow):
             self.task_btns_box.show()
             self.book_options_box.show()
 
-        def updateDoneBtn():
-            self.done_btn.hide()
-            if not G.books:
+        def updateNavBtn1():
+            self.nav_btn_1.hide()
+            if G.download_worker is not None:
+                if not G.books:
+                    return
+                if any(book.download is None for book in G.books):
+                    return
+                if any(
+                    book.download and not book.download.isFinished()
+                    for book in G.books
+                ):
+                    return
+
+            if G.process_worker is not None:
+                if not G.process_worker.show_select:
+                    return
+            self.nav_btn_1.show()
+
+        def updateNavBtn2():
+            self.nav_btn_2.hide()
+            if G.download_worker is not None:
                 return
-            if any(book.download is None for book in G.books):
-                return
-            if any(
-                book.download and not book.download.isFinished()
-                for book in G.books
-            ):
-                return
-            if not G.download_worker and not G.upload_worker:
-                return
-            self.done_btn.show()
+            self.nav_btn_2.show()
 
         def updateNavBtns():
             self.nav_btns_box.hide()
             if not self.web_engine.isVisible():
-                return
-            if G.download_worker or G.upload_worker:
                 return
             self.nav_btns_box.show()
 
@@ -362,3 +375,8 @@ class UI(QMainWindow):
             ):
                 return
             self.task_label_box.show()
+
+        def updateBookList():
+            for book in G.books:
+                if book.list_item is not None:
+                    book.list_item.updateData()
