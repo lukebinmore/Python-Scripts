@@ -404,6 +404,117 @@ class Process:
                 book.meta_updated = False
 
 
+class Upload:
+    def __init__(self):
+        self.setupUI()
+        ui.updateUIParts()
+        ui.confirmAction(
+            "Important Note",
+            "Please remember that all books currently in your list will be uplaoded to the services you choose!",
+            self.startGoogleUpload,
+            info=True,
+        )
+
+    def setupUI(self):
+        ui.restart_btn.click(
+            lambda: ui.confirmAction(
+                "Restarting Upload Task!",
+                "Are you sure you would like to restart the upload task?",
+                self.restart,
+                warn_text=True,
+                warn_true=True,
+            )
+        )
+
+        ui.close_btn.click(
+            lambda: ui.confirmAction(
+                "Cancelling Upload Task!",
+                "Are you sure you would like to end the upload task?",
+                self.close,
+                warn_text=True,
+                warn_true=True,
+            )
+        )
+
+        ui.nav_btn_1.setText("Start Upload")
+        ui.nav_btn_2.setText("Cancel")
+        ui.web_engine.show()
+
+    def cleanUp(self):
+        for book in G.books:
+            book.list_item.setTheme()
+        ui.showContent()
+
+    def restart(self):
+        self.cleanUp()
+        QTimer.singleShot(0, startProcessBooks)
+
+    def close(self):
+        self.cleanUp()
+        ui.web_engine.hide()
+        QTimer.singleShot(0, close)
+
+    def startGoogleUpload(self, confirmed=False):
+        if not confirmed:
+            ui.confirmAction(
+                "Starting Play Books Upload",
+                "Would you like to upload your books to Google Play Books?",
+                lambda: self.startGoogleUpload(True),
+                self.startAppleUpload,
+            )
+            return
+
+        ui.web_engine.setUrl(G.PLAY_BOOKS)
+        ui.web_engine.loaded(lambda: self.checkGoogleLogin(None))
+        ui.nav_btn_1.click(
+            lambda: self.checkGoogleLogin(self.processGoogleUpload)
+        )
+        ui.nav_btn_2.click(self.startAppleUpload)
+
+    def checkGoogleLogin(self, logged_in=None, callback=None):
+        ui.status.setText("Checking For Login...")
+        ui.web_engine.loadedDone()
+
+        if logged_in is None:
+            js_code = (
+                "var element = Array.from(document.querySelectorAll('span.mdc-button__label')).find("
+                "el => el.textContent.trim() === 'Upload files');"
+                "if (element) { true; } else { false; }"
+            )
+
+            QTimer.singleShot(
+                1000,
+                lambda: ui.web_engine.page().runJavaScript(
+                    js_code, lambda result: self.checkGoogleLogin(result)
+                ),
+            )
+            return
+
+        if not logged_in:
+            ui.web_engine.setUrl(G.PLAY_BOOKS)
+            ui.confirmAction(
+                "Login Required / Incorrect Page",
+                "You are either not logged in or on the wrong page. Please make sure you are logged in.",
+                warn_text=True,
+                info=True,
+            )
+            return
+
+        ui.status.setText("Waiting For User Input...")
+        ui.updateUIParts()
+
+        if callback is not None:
+            callback()
+
+    def processGoogleUpload(self):
+        print("WIP")
+        self.startAppleUpload()
+
+    def startAppleUpload(self, confirmed=False):
+        print("WIP")
+        self.close()
+
+
 def close():
     G.download_worker = None
     G.process_worker = None
@@ -458,7 +569,7 @@ def startProcessBooks():
 
 def startUploadBooks():
     close()
-    # G.upload_worker = Upload()
+    G.upload_worker = Upload()
 
 
 if __name__ == "__main__":

@@ -345,6 +345,7 @@ class UI(QMainWindow):
             if G.process_worker is not None:
                 if not G.process_worker.show_select:
                     return
+
             self.nav_btn_1.show()
 
         def updateNavBtn2():
