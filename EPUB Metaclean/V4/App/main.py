@@ -1,13 +1,15 @@
 import sys
 import epubfile
 import re
+import json
 from globals import G
 from ui import UI
 from book_class import Book
 from helper_functions import *
 from qt_overrides import WebEngineView
 from PyQt5.QtWidgets import QApplication, QFileDialog
-from PyQt5.QtCore import QTimer
+from PyQt5.QtCore import QTimer, QPoint, QUrl, QMimeData, Qt
+from PyQt5.QtGui import QDrag, QCursor
 
 
 class Downloads:
@@ -464,16 +466,16 @@ class Upload:
             )
             return
 
+        self.callback = self.processGoogleUpload
         ui.web_engine.setUrl(G.PLAY_BOOKS)
         ui.web_engine.loaded(lambda: self.checkGoogleLogin(None))
-        ui.nav_btn_1.click(
-            lambda: self.checkGoogleLogin(self.processGoogleUpload)
-        )
+        ui.nav_btn_1.clickDone()
         ui.nav_btn_2.click(self.startAppleUpload)
 
-    def checkGoogleLogin(self, logged_in=None, callback=None):
+    def checkGoogleLogin(self, logged_in=None):
         ui.status.setText("Checking For Login...")
         ui.web_engine.loadedDone()
+        ui.nav_btn_1.clickDone()
 
         if logged_in is None:
             js_code = (
@@ -485,7 +487,8 @@ class Upload:
             QTimer.singleShot(
                 1000,
                 lambda: ui.web_engine.page().runJavaScript(
-                    js_code, lambda result: self.checkGoogleLogin(result)
+                    js_code,
+                    lambda result: self.checkGoogleLogin(result),
                 ),
             )
             return
@@ -503,12 +506,78 @@ class Upload:
         ui.status.setText("Waiting For User Input...")
         ui.updateUIParts()
 
-        if callback is not None:
-            callback()
+        ui.nav_btn_1.click(self.processGoogleUpload)
 
-    def processGoogleUpload(self):
-        print("WIP")
-        self.startAppleUpload()
+    def processGoogleUpload(self, ready=False, position=None):
+        ui.status.setText("Uploading Books...")
+        if not ready:
+            js_code = (
+                "var element = Array.from(document.querySelectorAll('span.mdc-button__label')).find("
+                "el => el.textContent.trim() === 'Upload files');"
+                "if (element) {element.click(); true;} else {false;}"
+            )
+            QTimer.singleShot(
+                1000,
+                lambda: ui.web_engine.page().runJavaScript(
+                    js_code,
+                    lambda result: self.processGoogleUpload(result),
+                ),
+            )
+            return
+
+        if position is None:
+            js_code = """
+            var iframe = document.getElementById(':0.contentEl');
+            if (iframe) {
+                var rect = iframe.getBoundingClientRect();
+                JSON.stringify({x: rect.x + rect.width / 2, y: rect.y + rect.height / 2});
+            } else {
+                JSON.stringify(null);
+            }
+            """
+            ui.web_engine.page().runJavaScript(
+                js_code, lambda result: self.processGoogleUpload(True, result)
+            )
+            return
+
+        if position == "null":
+            QTimer.singleShot(100, lambda: self.processGoogleUpload())
+            return
+
+        pos_data = json.loads(position)
+        x, y = int(pos_data["x"]), int(pos_data["y"])
+        view_pos = ui.web_engine.mapToGlobal(QPoint(x, y))
+        file_paths = [QUrl.fromLocalFile(book.file_path) for book in G.books]
+        mime_data = QMimeData()
+        mime_data.setUrls(file_paths)
+        drag = QDrag(ui.web_engine)
+        drag.setMimeData(mime_data)
+        cursor = QCursor()
+        QTimer.singleShot(
+            2000,
+            lambda: (
+                cursor.setPos(view_pos.x(), view_pos.y()),
+                drag.exec_(Qt.CopyAction),
+                self.cleanupPlayBooks(),
+            ),
+        )
+
+    def cleanupPlayBooks(self, upload_in_progress=True):
+        if upload_in_progress:
+            js_code = """
+            var element = document.getElementById(':0.contentE1');
+            if (element) {true;} else {false;}
+            """
+            ui.web_engine.page().runJavaScript(
+                js_code,
+                lambda result: QTimer.singleShot(
+                    1000, lambda: self.cleanupPlayBooks(result)
+                ),
+            )
+            return
+
+        if not upload_in_progress:
+            self.startAppleUpload()
 
     def startAppleUpload(self, confirmed=False):
         print("WIP")

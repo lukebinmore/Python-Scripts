@@ -220,12 +220,14 @@ class PushButton(QPushButton, BaseWidget):
         BaseWidget.__init__(self, parent, name, hor_policy, ver_policy, theme)
 
     def click(self, slot):
+        self.clickDone()
+        self.clicked.connect(slot)
+
+    def clickDone(self):
         try:
             self.clicked.disconnect()
         except TypeError:
             pass
-
-        self.clicked.connect(slot)
 
 
 class ImageButton(QPushButton, BaseWidget):
