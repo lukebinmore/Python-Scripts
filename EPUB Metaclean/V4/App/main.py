@@ -373,20 +373,23 @@ class Process:
             if book.meta_updated:
                 continue
 
-            new_file_name = (
-                book.title
-                if book.title is not None
-                else book.file_name.replace(".epub", "")
+            new_title = (
+                book.title if book.title is not None else book.file_name
             )
-            new_file_name += (
-                f" - {book.author}" if book.author is not None else ""
+            new_author = book.author if book.author is not None else None
+            replacements = [".epub", ":", ";", "(", ")", "-", "_", "!", '"']
+            for replacement in replacements:
+                new_title = new_title.replace(replacement, "")
+                new_author = new_author.replace(replacement, "")
+            new_file_path = new_title + (
+                new_author if new_author is not None else ""
             )
-            new_file_path = os.path.join(os.getcwd(), new_file_name + ".epub")
+            new_file_path = os.path.join(os.getcwd(), new_file_path + ".epub")
 
             try:
                 os.rename(book.file_path, new_file_path)
                 book.file_path = new_file_path
-                book.file_name = new_file_name
+                book.file_name = new_title
             except Exception as e:
                 print(f"Error renaming file: {e}")
 
@@ -408,12 +411,11 @@ class Process:
 
 class Upload:
     def __init__(self):
+        self.callback = None
         self.setupUI()
-        ui.updateUIParts()
         ui.confirmAction(
             "Important Note",
-            "Please remember that all books currently in your list will be uplaoded to the services you choose!",
-            self.startGoogleUpload,
+            "Please remember that all books currently in your list will be uplaoded to Google Play Books!",
             info=True,
         )
 
@@ -439,8 +441,13 @@ class Upload:
         )
 
         ui.nav_btn_1.setText("Start Upload")
+        ui.nav_btn_1.click(lambda: self.checkLogin(callback=self.startUpload))
         ui.nav_btn_2.setText("Cancel")
+        ui.nav_btn_2.click(self.close)
         ui.web_engine.show()
+        ui.web_engine.setUrl(G.PLAY_BOOKS)
+        ui.web_engine.loaded(lambda: self.checkLogin(None))
+        ui.updateUIParts()
 
     def cleanUp(self):
         for book in G.books:
@@ -456,26 +463,11 @@ class Upload:
         ui.web_engine.hide()
         QTimer.singleShot(0, close)
 
-    def startGoogleUpload(self, confirmed=False):
-        if not confirmed:
-            ui.confirmAction(
-                "Starting Play Books Upload",
-                "Would you like to upload your books to Google Play Books?",
-                lambda: self.startGoogleUpload(True),
-                self.startAppleUpload,
-            )
-            return
-
-        self.callback = self.processGoogleUpload
-        ui.web_engine.setUrl(G.PLAY_BOOKS)
-        ui.web_engine.loaded(lambda: self.checkGoogleLogin(None))
-        ui.nav_btn_1.clickDone()
-        ui.nav_btn_2.click(self.startAppleUpload)
-
-    def checkGoogleLogin(self, logged_in=None):
+    def checkLogin(self, logged_in=None, callback=None):
         ui.status.setText("Checking For Login...")
         ui.web_engine.loadedDone()
-        ui.nav_btn_1.clickDone()
+        if callback is not None:
+            self.callback = callback
 
         if logged_in is None:
             js_code = (
@@ -488,7 +480,7 @@ class Upload:
                 1000,
                 lambda: ui.web_engine.page().runJavaScript(
                     js_code,
-                    lambda result: self.checkGoogleLogin(result),
+                    lambda result: self.checkLogin(result),
                 ),
             )
             return
@@ -506,9 +498,11 @@ class Upload:
         ui.status.setText("Waiting For User Input...")
         ui.updateUIParts()
 
-        ui.nav_btn_1.click(self.processGoogleUpload)
+        if self.callback is not None:
+            self.callback()
+            self.callback = None
 
-    def processGoogleUpload(self, ready=False, position=None):
+    def startUpload(self, ready=False, position=None):
         ui.status.setText("Uploading Books...")
         if not ready:
             js_code = (
@@ -520,7 +514,7 @@ class Upload:
                 1000,
                 lambda: ui.web_engine.page().runJavaScript(
                     js_code,
-                    lambda result: self.processGoogleUpload(result),
+                    lambda result: self.startUpload(result),
                 ),
             )
             return
@@ -536,12 +530,12 @@ class Upload:
             }
             """
             ui.web_engine.page().runJavaScript(
-                js_code, lambda result: self.processGoogleUpload(True, result)
+                js_code, lambda result: self.startUpload(True, result)
             )
             return
 
         if position == "null":
-            QTimer.singleShot(100, lambda: self.processGoogleUpload())
+            QTimer.singleShot(100, lambda: self.startUpload())
             return
 
         pos_data = json.loads(position)
@@ -558,11 +552,11 @@ class Upload:
             lambda: (
                 cursor.setPos(view_pos.x(), view_pos.y()),
                 drag.exec_(Qt.CopyAction),
-                self.cleanupPlayBooks(),
+                self.waitForUpload(),
             ),
         )
 
-    def cleanupPlayBooks(self, upload_in_progress=True):
+    def waitForUpload(self, upload_in_progress=True):
         if upload_in_progress:
             js_code = """
             var element = document.getElementById(':0.contentE1');
@@ -571,17 +565,13 @@ class Upload:
             ui.web_engine.page().runJavaScript(
                 js_code,
                 lambda result: QTimer.singleShot(
-                    1000, lambda: self.cleanupPlayBooks(result)
+                    1000, lambda: self.waitForUpload(result)
                 ),
             )
             return
 
         if not upload_in_progress:
-            self.startAppleUpload()
-
-    def startAppleUpload(self, confirmed=False):
-        print("WIP")
-        self.close()
+            self.close()
 
 
 def close():
