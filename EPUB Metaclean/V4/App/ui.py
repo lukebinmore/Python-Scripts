@@ -52,7 +52,7 @@ class UI(QMainWindow):
             self.updateData()
 
             self.delete_btn = PushButton(self, text=" 🗑 ", theme="warn")
-            self.delete_btn.click(self.deleteBook)
+            self.delete_btn.click(lambda: self.deleteBook())
 
         def updateData(self):
             if self.ui.notice.isVisible():
@@ -86,17 +86,28 @@ class UI(QMainWindow):
             if self.progress_bar.value() == self.progress_bar.maximum():
                 self.progress_bar.hide()
 
-        def deleteBook(self):
+        def deleteBook(self, override_callback=None):
             cover_exists = False if self.book.cover is None else True
-            self.ui.confirmAction(
-                "Deleting Book",
-                "Would you like to delete the source file?",
-                lambda: (self.book.deleteBook(True)),
-                lambda: (self.book.deleteBook(False)),
-                warn_text=True,
-                warn_true=True,
-                image=self.book.cover if cover_exists else None,
-            )
+            if override_callback is not None:
+                self.ui.confirmAction(
+                    "Deleting Book",
+                    "Would you like to delete the source file?",
+                    lambda: (self.book.deleteBook(True), override_callback()),
+                    lambda: (self.book.deleteBook(False), override_callback()),
+                    warn_text=True,
+                    warn_true=True,
+                    image=self.book.cover if cover_exists else None,
+                )
+            else:
+                self.ui.confirmAction(
+                    "Deleting Book",
+                    "Would you like to delete the source file?",
+                    lambda: (self.book.deleteBook(True)),
+                    lambda: (self.book.deleteBook(False)),
+                    warn_text=True,
+                    warn_true=True,
+                    image=self.book.cover if cover_exists else None,
+                )
 
         def requeueBook(self):
             self.book.requeue = True
@@ -294,7 +305,7 @@ class UI(QMainWindow):
                 updateNavBtn2(),
                 updateNavBtns(),
                 updateTaskLabel(),
-                updateBookList(),
+                updateBookListItems(),
             ),
         )
 
@@ -377,7 +388,7 @@ class UI(QMainWindow):
                 return
             self.task_label_box.show()
 
-        def updateBookList():
+        def updateBookListItems():
             for book in G.books:
                 if book.list_item is not None:
                     book.list_item.updateData()

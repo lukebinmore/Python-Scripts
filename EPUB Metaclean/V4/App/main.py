@@ -162,7 +162,6 @@ class Downloads:
         )
         file_path = os.path.join(os.getcwd(), file_name)
         download.setDownloadFileName(file_path)
-        download.accept()
         book = next(
             (
                 b
@@ -171,6 +170,17 @@ class Downloads:
             ),
             None,
         )
+        for b in G.books:
+            if b.file_name == file_name:
+                ui.status.setText(
+                    "Already Downloaded! - Waiting For User Input..."
+                )
+                book.deleteBook(False)
+                self.current_download_count -= 1
+                ui.updateUIParts()
+                self.processQueue()
+                return
+        download.accept()
         book.list_item.progress_bar.config(text="Downloading")
         book.download = download
         book.file_name = file_name
@@ -285,12 +295,15 @@ class Process:
                     )
                 )
                 ui.web_engine.setInterceptor(self.urlInterceptor)
-                ui.web_engine.setUrl(
-                    G.GOODREADS_URL
-                    + "search?q="
-                    + book.title.replace(" ", "+")
-                    + "+"
-                    + book.author.replace(" ", "+")
+                QTimer.singleShot(
+                    50,
+                    lambda: ui.web_engine.setUrl(
+                        G.GOODREADS_URL
+                        + "search?q="
+                        + book.title.replace(" ", "+")
+                        + "+"
+                        + book.author.replace(" ", "+")
+                    ),
                 )
                 book.list_item.setTheme("highlight")
                 ui.updateUIParts()
@@ -571,7 +584,17 @@ class Upload:
             return
 
         if not upload_in_progress:
-            self.close()
+            self.deleteSource()
+
+    def deleteSource(self):
+        ui.status.setText("Deleting Source Files...")
+        if G.books != []:
+            QTimer.singleShot(
+                100, lambda: G.books[0].list_item.deleteBook(self.deleteSource)
+            )
+            return
+        ui.status.setText("Waiting For User Input...")
+        self.close()
 
 
 def close():
