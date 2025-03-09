@@ -67,11 +67,10 @@ sub_tables = main_table.select("table")
 root = ET.Element("LabUpgrades")
 
 for sub_table in sub_tables:
-    header = sub_table.select("th")[0].get_text(strip=True)
-    sub_table_element = ET.SubElement(root, "Category", name=header)
+    category = sub_table.select("th")[0].get_text(strip=True)
     rows = sub_table.select("tr")
     print("------------------")
-    print(f"\n###{header}###")
+    print(f"\n###{category}###")
 
     for row in rows:
         cells = row.select("td")
@@ -89,8 +88,7 @@ for sub_table in sub_tables:
             if upgrade_name in skip_list:
                 continue
 
-            cell_element = ET.SubElement(sub_table_element, "Upgrade", name=upgrade_name, current_level="0", max_level=upgrade_max)
-            levels_element = ET.SubElement(cell_element, "Levels")
+            cell_base = [upgrade_name, upgrade_max]
             url = wiki_url + link[0]["href"]
 
             upgrade_data = BeautifulSoup(requests.get(url).content, "html.parser")
@@ -157,7 +155,7 @@ for sub_table in sub_tables:
                 for c in range(len(col)):
                     row_data.append(col[c].get_text(strip=True))
 
-                level_element = ET.SubElement(levels_element, "Details", Level=row_data[0], Time=row_data[1], Cost=row_data[2], Value=row_data[3])
+                level_element = ET.SubElement(root, "Upgrade", name=cell_base[0], max_level=cell_base[1], category=category, level=row_data[0], time=row_data[1], cost=row_data[2], value=row_data[3])
 
 
 for error in errors:
