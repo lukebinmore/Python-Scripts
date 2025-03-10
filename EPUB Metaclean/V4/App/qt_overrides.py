@@ -150,9 +150,7 @@ class ScrollContainer(QScrollArea, BaseWidget):
         QScrollArea.__init__(self, parent)
         BaseWidget.__init__(self, parent, hor_policy, ver_policy)
 
-        self.container = Container(
-            self, name, vertical, hor_policy, ver_policy
-        )
+        self.container = Container(self, name, vertical, hor_policy, ver_policy)
         self.setWidget(self.container)
         self.setWidgetResizable(True)
 
@@ -173,9 +171,7 @@ class Label(QLabel, BaseWidget):
 
 
 class ImageLabel(QLabel, BaseWidget):
-    def __init__(
-        self, parent=None, name=None, hor_policy=None, ver_policy=None
-    ):
+    def __init__(self, parent=None, name=None, hor_policy=None, ver_policy=None):
         QLabel.__init__(self, parent)
         BaseWidget.__init__(self, parent, name, hor_policy, ver_policy)
         self.setAlignment(Qt.AlignCenter)
@@ -201,9 +197,7 @@ class ImageLabel(QLabel, BaseWidget):
 
     def updateImageSize(self):
         if hasattr(self, "image_original") and self.image_original is not None:
-            self.setPixmap(
-                self.image_original.scaled(self.size(), Qt.KeepAspectRatio)
-            )
+            self.setPixmap(self.image_original.scaled(self.size(), Qt.KeepAspectRatio))
 
 
 class PushButton(QPushButton, BaseWidget):
@@ -231,9 +225,7 @@ class PushButton(QPushButton, BaseWidget):
 
 
 class ImageButton(QPushButton, BaseWidget):
-    def __init__(
-        self, parent=None, name=None, hor_policy=None, ver_policy=None
-    ):
+    def __init__(self, parent=None, name=None, hor_policy=None, ver_policy=None):
         QPushButton.__init__(self, "", parent)
         BaseWidget.__init__(self, parent, name, hor_policy, ver_policy)
         self.setIconSize(self.size())
@@ -255,9 +247,7 @@ class ImageButton(QPushButton, BaseWidget):
 
     def updateImageSize(self):
         if self.isVisible() and hasattr(self, "image_original"):
-            scaled_pixmap = self.image_original.scaled(
-                self.size(), Qt.KeepAspectRatio
-            )
+            scaled_pixmap = self.image_original.scaled(self.size(), Qt.KeepAspectRatio)
             self.setIcon(QIcon(scaled_pixmap))
             self.setIconSize(QSize(*G.THUMBNAIL_SIZE))
             self.setFixedSize(QSize(*G.THUMBNAIL_SIZE))
@@ -293,9 +283,7 @@ class ImageButton(QPushButton, BaseWidget):
 
 
 class ProgressBar(QProgressBar, BaseWidget):
-    def __init__(
-        self, parent=None, name=None, hor_policy=None, ver_policy=None
-    ):
+    def __init__(self, parent=None, name=None, hor_policy=None, ver_policy=None):
         QProgressBar.__init__(self, parent)
         BaseWidget.__init__(self, parent, name, hor_policy, ver_policy)
         self.setTextVisible(True)
@@ -339,9 +327,7 @@ class WebEnginePage(QWebEnginePage):
 
 
 class WebEngineView(QWebEngineView, BaseWidget):
-    def __init__(
-        self, parent=None, name=None, hor_policy=None, ver_policy=None
-    ):
+    def __init__(self, parent=None, name=None, hor_policy=None, ver_policy=None):
         QWebEngineView.__init__(self, parent)
         BaseWidget.__init__(self, parent, name, hor_policy, ver_policy)
 
@@ -382,9 +368,7 @@ class WebEngineView(QWebEngineView, BaseWidget):
                     if not clipboard.image().isNull():
                         processImage()
                     elif attempts > 0:
-                        QTimer.singleShot(
-                            50, lambda: waitForClipboardContent(attempts - 1)
-                        )
+                        QTimer.singleShot(50, lambda: waitForClipboardContent(attempts - 1))
 
                 def processImage():
                     clipboard = QApplication.clipboard()
@@ -409,6 +393,7 @@ class WebEngineView(QWebEngineView, BaseWidget):
 
     def setUrl(self, url):
         url = QUrl(url)
+        self.clearHistory()
         super().setUrl(url)
 
     def clearHistory(self):

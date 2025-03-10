@@ -79,15 +79,11 @@ class Downloads:
             return True
 
         if "epub-" not in url_part:
-            ui.status.setText(
-                "EPUB Not Available! - Waiting For User Input..."
-            )
+            ui.status.setText("EPUB Not Available! - Waiting For User Input...")
             return False
 
         if self.checkBookAlreadyDownloaded(url):
-            ui.status.setText(
-                "Already Downloaded! - Waiting For User Input..."
-            )
+            ui.status.setText("Already Downloaded! - Waiting For User Input...")
             return False
 
         self.queueDownload(url)
@@ -160,14 +156,10 @@ class Downloads:
         file_name = os.path.basename(
             download.suggestedFileName().replace("/OceanofPDF.com/", "")
         )
-        file_path = os.path.join(os.getcwd(), file_name)
+        file_path = os.path.join(G.DOWNLOAD_LOCATION, file_name)
         download.setDownloadFileName(file_path)
         book = next(
-            (
-                b
-                for b in G.books
-                if b.download_engine == download.page().view()
-            ),
+            (b for b in G.books if b.download_engine == download.page().view()),
             None,
         )
         for b in G.books:
@@ -235,6 +227,7 @@ class Process:
         ui.showContent()
         ui.hidden_engines_box.clear()
         ui.web_engine.setInterceptor(None)
+        ui.status.setText("Waiting For User Input...")
 
     def restart(self):
         self.cleanUp()
@@ -274,9 +267,7 @@ class Process:
         ui.web_engine.show()
         ui.web_engine.loaded(ui.updateUIParts)
         ui.nav_btn_1.setText("Select")
-        ui.nav_btn_1.click(
-            lambda: ui.web_engine.page().toHtml(self.selectBook)
-        )
+        ui.nav_btn_1.click(lambda: ui.web_engine.page().toHtml(self.selectBook))
         self.checkRequeue()
         for book in G.books:
             if not book.meta_updated:
@@ -386,9 +377,7 @@ class Process:
             if book.meta_updated:
                 continue
 
-            new_title = (
-                book.title if book.title is not None else book.file_name
-            )
+            new_title = book.title if book.title is not None else book.file_name
             new_author = book.author if book.author is not None else None
             replacements = [".epub", ":", ";", "(", ")", "-", "_", "!", '"']
             for replacement in replacements:
@@ -588,10 +577,9 @@ class Upload:
 
     def deleteSource(self):
         ui.status.setText("Deleting Source Files...")
+        G.setDeleteBtns(self.deleteSource)
         if G.books != []:
-            QTimer.singleShot(
-                100, lambda: G.books[0].list_item.deleteBook(self.deleteSource)
-            )
+            QTimer.singleShot(100, G.books[0].list_item.deleteBook)
             return
         ui.status.setText("Waiting For User Input...")
         self.close()
@@ -607,8 +595,8 @@ def close():
 
 def getSourceFiles():
     files = [
-        os.path.join(os.getcwd(), f)
-        for f in os.listdir(os.getcwd())
+        os.path.join(G.DOWNLOAD_LOCATION, f)
+        for f in os.listdir(G.DOWNLOAD_LOCATION)
         if f.endswith(".epub")
     ]
     collectFiles(files)
@@ -661,6 +649,9 @@ if __name__ == "__main__":
     G.download_worker = None
     G.process_worker = None
     G.upload_worker = None
+
+    if not os.path.exists(G.DOWNLOAD_LOCATION):
+        os.makedirs(G.DOWNLOAD_LOCATION)
 
     ui.download_task_btn.click(startDownloadBooks)
     ui.process_task_btn.click(startProcessBooks)

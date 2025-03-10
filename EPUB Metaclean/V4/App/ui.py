@@ -86,28 +86,17 @@ class UI(QMainWindow):
             if self.progress_bar.value() == self.progress_bar.maximum():
                 self.progress_bar.hide()
 
-        def deleteBook(self, override_callback=None):
+        def deleteBook(self):
             cover_exists = False if self.book.cover is None else True
-            if override_callback is not None:
-                self.ui.confirmAction(
-                    "Deleting Book",
-                    "Would you like to delete the source file?",
-                    lambda: (self.book.deleteBook(True), override_callback()),
-                    lambda: (self.book.deleteBook(False), override_callback()),
-                    warn_text=True,
-                    warn_true=True,
-                    image=self.book.cover if cover_exists else None,
-                )
-            else:
-                self.ui.confirmAction(
-                    "Deleting Book",
-                    "Would you like to delete the source file?",
-                    lambda: (self.book.deleteBook(True)),
-                    lambda: (self.book.deleteBook(False)),
-                    warn_text=True,
-                    warn_true=True,
-                    image=self.book.cover if cover_exists else None,
-                )
+            self.ui.confirmAction(
+                "Deleting Book",
+                "Would you like to delete the source file?",
+                lambda: (self.book.deleteBook(True)),
+                lambda: (self.book.deleteBook(False)),
+                warn_text=True,
+                warn_true=True,
+                image=self.book.cover if cover_exists else None,
+            )
 
         def requeueBook(self):
             self.book.requeue = True
@@ -204,7 +193,7 @@ class UI(QMainWindow):
             self.content, "book_options_box", False
         )
         self.select_downloads_btn = PushButton(
-            self.book_options_box, text="Select Downloadeds"
+            self.book_options_box, text="Select Downloaded"
         )
         self.select_others_btn = PushButton(
             self.book_options_box, text="Select Other Books"
@@ -317,7 +306,11 @@ class UI(QMainWindow):
 
         def updateSelectDownloadsBtn():
             self.select_downloads_btn.hide()
-            files = [f for f in os.listdir(os.getcwd()) if f.endswith(".epub")]
+            files = [
+                f
+                for f in os.listdir(G.DOWNLOAD_LOCATION)
+                if f.endswith(".epub")
+            ]
             if not files:
                 return
             self.select_downloads_btn.show()

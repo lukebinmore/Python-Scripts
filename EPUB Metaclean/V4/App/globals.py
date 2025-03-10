@@ -1,4 +1,5 @@
 from PyQt5.QtWidgets import QSizePolicy
+import os
 
 
 class Globals:
@@ -15,6 +16,9 @@ class Globals:
         self.GOODREADS_URL = "https://www.goodreads.com/"
         self.IMAGE_PROVIDER_URL = "https://www.google.com/search?tbm=isch&q="
         self.PLAY_BOOKS = "https://play.google.com/books"
+        self.DOWNLOAD_LOCATION = os.path.join(
+            os.path.expanduser("~"), "Desktop", "Books"
+        )
 
         self.PREFERRED = QSizePolicy.Preferred
         self.EXPANDING = QSizePolicy.Expanding
