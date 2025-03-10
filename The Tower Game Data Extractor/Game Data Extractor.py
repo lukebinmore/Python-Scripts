@@ -54,6 +54,23 @@ def checkTable(table):
     return True
 
 
+def toTime(input):
+    input = input.lower()
+    days = hours = minutes = 0
+    day_match = re.search(r"(\d+)d", input)
+    hour_match = re.search(r"(\d+)h", input)
+    minute_match = re.search(r"(\d)m", input)
+
+    if day_match:
+        days = int(day_match.group(1))
+    if hour_match:
+        hours = int(hour_match.group(1))
+    if minute_match:
+        minutes = int(minute_match.group(1))
+
+    return f"{days}:{hours}:{minutes}"
+
+
 skip_list = ["Card Mastery"]
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -130,32 +147,39 @@ for sub_table in sub_tables:
                 errors.append(upgrade_name)
                 continue
 
-            index = [0, 0, 0, 0]
+            index = {}
             rows = table.find_all("tr")
             header_col = rows[0].find_all("th")
+            header_mapping = {
+                "level": ["Level", "level"],
+                "time": ["Time", "time", "TIme"],
+                "cost": ["Cost", "cost", "Coins", "coins"],
+                "value": ["Value", "value", "Value (%)", "value (%)", "Ability", "ability"],
+            }
+
             for i in range(len(header_col)):
                 header = header_col[i].get_text(strip=True)
-                match header:
-                    case "Level":
-                        index[0] = i
-                    case "Time":
-                        index[1] = i
-                    case "Cost":
-                        index[2] = i
-                    case "Value":
-                        index[3] = i
-                    case "Ability":
-                        index[3] = i
+                for key, possible_headers in header_mapping.items():
+                    if header in possible_headers:
+                        index[key] = i
 
-            for r in range(len(rows)):
-                if r == 0:
-                    continue
+            for r in range(1, len(rows)):
                 col = rows[r].find_all("td")
                 row_data = []
                 for c in range(len(col)):
                     row_data.append(col[c].get_text(strip=True))
 
-                level_element = ET.SubElement(root, "Upgrade", name=cell_base[0], max_level=cell_base[1], category=category, level=row_data[0], time=row_data[1], cost=row_data[2], value=row_data[3])
+                level_element = ET.SubElement(
+                    root,
+                    "Upgrade",
+                    name=cell_base[0],
+                    max_level=cell_base[1],
+                    category=category,
+                    level=row_data[index["level"]],
+                    time=toTime(row_data[index["time"]]),
+                    cost=row_data[index["cost"]],
+                    value=row_data[index["value"]],
+                )
 
 
 for error in errors:
