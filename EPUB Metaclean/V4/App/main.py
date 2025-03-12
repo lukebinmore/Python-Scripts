@@ -386,7 +386,9 @@ class Process:
             new_file_path = new_title + (
                 new_author if new_author is not None else ""
             )
-            new_file_path = os.path.join(os.getcwd(), new_file_path + ".epub")
+            new_file_path = os.path.join(
+                G.DOWNLOAD_LOCATION, new_file_path + ".epub"
+            )
 
             try:
                 os.rename(book.file_path, new_file_path)
