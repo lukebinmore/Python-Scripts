@@ -32,9 +32,14 @@ class Student:
         self.id_number = id_number
         self.group = group
         self.badges = []
+        self.account_found = False
+        self.badges_completed = False
 
     def __str__(self):
-        return f"{self.firstname} {self.lastname} ({self.id_number}) - {self.group}"
+        return f"{self.firstname} {self.lastname} ({self.id_number} / {self.group})"
+
+    def AddBadge(self, badge):
+        self.badges.append(badge)
 
 
 class Group:
@@ -175,8 +180,10 @@ def MatchStudentData():
     for student in students:
         print(f" - Matching data for {student}...", end="\r")
         for entry in analytics:
-            if student.id_number in entry[1]:
-                student.badges = entry[2]
+            if student.id_number == entry[1]:
+                student.account_found = True
+                for badge in entry[2]:
+                    student.AddBadge(badge)
         print(f" - Matching data for {student} - Done!")
 
     Update_Print_History("\n - Matching data - Done!")
@@ -191,10 +198,10 @@ def CheckProgress(required_badges):
         print(f" - Checking progress for {student}...", end="\r")
 
         for badge in required_badges:
-            if badge not in student.badges:
-                break
-        else:
-            students.remove(student)
+            if badge in student.badges:
+                student.badges_completed = True
+            else:
+                print("student does not have badge")
 
         print(f" - Checking progress for {student} - Done!")
 
@@ -233,14 +240,21 @@ def GenerateOutput(required_badges):
     for group in groups:
         print(f" - Generating output data for {group.group_name}...", end="\r")
         output_string += f"\n\nGroup: {group.group_name}"
-        if len(group.students) == 0:
+
+        all_completed = True
+        for student in group.students:
+            if not student.account_found:
+                output_string += f"\n - {student} - No account found!"
+                all_completed = False
+            elif not student.badges_completed:
+                output_string += f"\n - {student}"
+                all_completed = False
+
+        if all_completed:
             output_string += (
                 "\n - All students have completed the required badges!"
             )
-        else:
-            for student in group.students:
-                output_string += f"\n - {student}"
-            output_string += "\n"
+        output_string += "\n"
         print(f" - Generating output data for {group.group_name} - Done!")
 
     Update_Print_History("\n - Generating output data - Done!")
