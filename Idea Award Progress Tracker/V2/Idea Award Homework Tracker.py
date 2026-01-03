@@ -566,12 +566,12 @@ def ViewHomework():
 
 
 def ViewLatestHomework():
-    MHeader(f"Latest Homework: {latestHM.name if latestHM else 'N/A'}")
+    MHeader(f"Latest Homework: {latestHW.name if latestHW else 'N/A'}")
 
     for group in groups:
         print(f"--- Group: {group} ---")
         for student in group.students:
-            PrintStudent(student, latestHM)
+            PrintStudent(student, latestHW)
         print()
 
     PressAnyKey()
