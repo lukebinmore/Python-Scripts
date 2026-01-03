@@ -1,0 +1,16 @@
+{
+  "student_data_path": "Student Data",
+  "student_data_headers": {
+    "firstname": "First Name",
+    "lastname": "Last Name",
+    "id": "Candidate Number"
+  },
+  "analytics_data_headers": {
+    "group_code": "Code",
+    "email": "Email",
+    "badges": "Badge List"
+  },
+  "schedule_path": "AppData/Homework Schedule.json",
+  "data_history_path": "AppData/Data History.json",
+  "grouping": "Group"
+}
