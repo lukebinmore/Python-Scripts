@@ -316,24 +316,22 @@ def ClearLines(n=1):
 
 def Getch():
     key = msvcrt.getch()
-    match key:
-        case b"\xe0" | b"\x00":
-            key2 = msvcrt.getch()
-            match key2:
-                case b"K":
-                    return "LEFT"
-                case b"M":
-                    return "RIGHT"
-                case _:
-                    return f"EXT_{ord(key2)}"
-        case b"\x1b":
-            return "ESC"
-        case b"\r":
-            return "1"
-        case b"\x08":
-            return "BACKSPACE"
-        case _:
-            return key.decode("utf-8").upper()
+    if key == b"\xe0" or key == b"\x00":
+        key2 = msvcrt.getch()
+        if key2 == b"K":
+            return "LEFT"
+        elif key2 == b"M":
+            return "RIGHT"
+        else:
+            return f"EXT_{ord(key2)}"
+    elif key == b"\x1b":
+        return "ESC"
+    elif key == b"\r":
+        return "1"
+    elif key == b"\x08":
+        return "BACKSPACE"
+    else:
+        return key.decode("utf-8").upper()
 
 
 def Colour(text, colour):
@@ -341,17 +339,16 @@ def Colour(text, colour):
         return text
 
     c = str(colour).upper()
-    match c:
-        case "G":
-            code = "32"
-        case "R":
-            code = "31"
-        case "Y":
-            code = "33"
-        case "M":
-            code = "95" ""
-        case "H":
-            return f"\033[97;44m{text}\033[0m"
+    if c == "G":
+        code = "32"
+    elif c == "R":
+        code = "31"
+    elif c == "Y":
+        code = "33"
+    elif c == "M":
+        code = "95"
+    elif c == "H":
+        return f"\033[97;44m{text}\033[0m"
 
     return f"\033[{code}m{text}\033[0m"
 
@@ -409,13 +406,12 @@ def ConfirmPrompt(prompt=""):
             print("Confirm? (Y/N)")
 
         ch = Getch()
-        match ch:
-            case "Y":
-                return True
-            case "N":
-                return False
-            case _:
-                PressAnyKey(ch)
+        if ch == "Y":
+            return True
+        elif ch == "N":
+            return False
+        else:
+            PressAnyKey(ch)
 
 
 def SwapGrouping():
@@ -703,15 +699,14 @@ def FilterMenu(filterType):
         filterList = getattr(filters, filterType)
 
         sourceList = []
-        match filterType:
-            case "Groups":
-                sourceList = groups
-            case "Badges":
-                sourceList = schedule
-            case "Statuses":
-                sourceList = [s[0] for s in statuses]
-            case "Students":
-                sourceList = students
+        if filterType == "Groups":
+            sourceList = groups
+        elif filterType == "Badges":
+            sourceList = schedule
+        elif filterType == "Statuses":
+            sourceList = [s[0] for s in statuses]
+        elif filterType == "Students":
+            sourceList = students
 
         allStatus = len(filterList) == 0
         options = [["Filter All", lambda: ToggleFilter(filterType, sourceList if allStatus else []), allStatus]]
