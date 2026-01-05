@@ -5,7 +5,7 @@ import json
 from datetime import date, datetime
 import msvcrt
 
-LIBS = os.path.join(os.path.dirname(__file__), os.path.join("Data", "Required Libraries"))
+LIBS = os.path.join(os.path.dirname(__file__), os.path.join("AppData", "Required Libraries"))
 sys.path.insert(0, LIBS)
 from openpyxl import load_workbook
 
