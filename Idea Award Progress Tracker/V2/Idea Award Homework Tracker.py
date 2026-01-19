@@ -523,7 +523,7 @@ def PrintStudent(student, badge):
     status = statuses[3] if not student.accountFound else status
 
     if status[0] not in filters.Statuses:
-        output = f" - {Colour(student, status[1])}"
+        output = f" - {Colour('■', status[1])} - ${student}"
         if status != statuses[3]:
             if student.late > 0:
                 output += " - " + Colour(f"{student.late} Late", "Y")
