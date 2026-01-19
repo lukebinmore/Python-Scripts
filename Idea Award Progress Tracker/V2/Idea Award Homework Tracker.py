@@ -123,15 +123,16 @@ def ImportSchedule():
 
     schedulePath = os.path.join(CURRENTDIR, settings["schedule_path"])
 
-    if os.path.exists(schedulePath):
-        with open(schedulePath, "r") as scheduleFile:
-            scheduleRaw = json.load(scheduleFile)
+    if not os.path.exists(schedulePath):
+        with open(schedulePath, "w") as tmpFile:
+            json.dump([], tmpFile)
+            tmpFile.close()
 
-            for badgeData in scheduleRaw:
-                schedule.append(Badge(badgeData["name"], badgeData["date"]))
+    with open(schedulePath, "r") as scheduleFile:
+        scheduleRaw = json.load(scheduleFile)
 
-    else:
-        open(schedulePath, "x")
+        for badgeData in scheduleRaw:
+            schedule.append(Badge(badgeData["name"], badgeData["date"]))
 
     SortSchedule()
 
@@ -144,6 +145,9 @@ def ImportStudents():
 
     studentDataPath = os.path.join(CURRENTDIR, settings["student_data_path"])
     dataFilesFound = False
+
+    if not os.path.exists(studentDataPath):
+        os.makedirs(studentDataPath)
 
     for filename in os.listdir(studentDataPath):
         if filename.endswith(".xlsx"):
@@ -299,7 +303,8 @@ def GetLatestHomework():
 def ThrowError(message):
     print(f"\n\nERROR: {message}\n\n")
     print("Please fix the issue and try again.")
-    input("Press any key to exit...")
+    print("Press any key to exit...")
+    Getch()
     exit()
 
 
