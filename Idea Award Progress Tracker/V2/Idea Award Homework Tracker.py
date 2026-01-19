@@ -543,7 +543,7 @@ def ViewHomework():
     reqBadges = [b for b in schedule if b not in filters.Badges]
 
     if settings["grouping"] == "Homework":
-        for badge in reqBadges:
+        for badge in reversed(reqBadges):
             print(f"=== Homework: {badge} ===")
             for group in reqGroups:
                 print(f"--- Group: {group} ---")
@@ -555,7 +555,7 @@ def ViewHomework():
     else:
         for group in reqGroups:
             print(f"=== Group: {group} ===")
-            for badge in reqBadges:
+            for badge in reversed(reqBadges):
                 print(f"--- Homework: {badge} ---")
                 for student in group.students:
                     if student not in filters.Students:
@@ -572,7 +572,8 @@ def ViewLatestHomework():
     for group in groups:
         print(f"--- Group: {group} ---")
         for student in group.students:
-            PrintStudent(student, latestHW)
+            if latestHW not in student.badges:
+                PrintStudent(student, latestHW)
         print()
 
     PressAnyKey()
@@ -819,6 +820,7 @@ def MainMenu():
 
 
 # endregion
+
 
 # region MAIN
 Setup()

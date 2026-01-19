@@ -12,5 +12,5 @@
   },
   "schedule_path": "AppData/Homework Schedule.json",
   "data_history_path": "AppData/Data History.json",
-  "grouping": "Group"
+  "grouping": "Homework"
 }
