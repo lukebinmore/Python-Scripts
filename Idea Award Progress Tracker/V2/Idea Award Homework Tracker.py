@@ -763,7 +763,8 @@ def EditSheduleBadgeMenu(badgeIdx):
         ]
 
         MHeader("Edit Homework")
-        print(f"Editing Badge: {schedule[badgeIdx].name}\n")
+        print(f"Editing Badge: {schedule[badgeIdx].name}")
+        print(f"Due Date: {date.fromisoformat(schedule[badgeIdx].date).strftime('%d-%m-%Y')}\n")
         args = MOptions(args, options)
         args = MInput(args, options)
 
