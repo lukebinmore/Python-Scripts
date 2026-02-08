@@ -99,7 +99,7 @@ schedule = []
 students = []
 groups = []
 statuses = [("Completed", "G"), ("Late", "Y"), ("Outstanding", "R"), ("Missing Accounts", "M")]
-latestHM = None
+latestHW = []
 filters = Filters()
 # endregion
 
@@ -287,11 +287,14 @@ def GetLatestHomework():
     global latestHW
     print("Getting Latest Homework...", end="\r")
 
-    latestHW = schedule[-1] if len(schedule) > 0 else None
-    now = date.today().isoformat()
-    for badge in schedule:
-        if badge.date > latestHW.date and badge.date <= now:
-            latestHW = badge
+    if len(schedule) > 0:
+        now = date.today().isoformat()
+        for badge in schedule:
+            if badge.date <= now:
+                if len(latestHW) == 0 or badge.date > latestHW[0].date:
+                    latestHW = [badge]
+                elif badge.date == latestHW[0].date:
+                    latestHW.append(badge)
 
     print("Getting Latest Homework... Done")
 
@@ -567,13 +570,18 @@ def ViewHomework():
 
 
 def ViewLatestHomework():
-    MHeader(f"Latest Homework: {latestHW.name if latestHW else 'N/A'}")
+    MHeader("Latest Homework:")
+    for badge in latestHW:
+        print(f" - {badge}")
+    print()
 
     for group in groups:
         print(f"--- Group: {group} ---")
         for student in group.students:
-            if latestHW not in student.badges:
-                PrintStudent(student, latestHW)
+            for badge in latestHW:
+                if badge not in student.badges:
+                    PrintStudent(student, badge)
+                    break
         print()
 
     PressAnyKey()
